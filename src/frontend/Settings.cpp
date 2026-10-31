@@ -1,6 +1,6 @@
 /*
  * BeBox emulator - persistent settings and machine profiles, for the
- * Windows front end.
+ * Windows and Qt front ends.
  * Copyright 2026, the BeBox emulator authors. MIT License.
  */
 #include "Settings.h"

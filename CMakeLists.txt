@@ -1,12 +1,14 @@
-# BeBox emulator: CMake build for Windows (MSYS2 UCRT64 / MinGW-w64) and
-# Linux. Haiku builds with the Makefile, Linux tests with tests/linux.
+# BeBox emulator: CMake build for Windows (MSYS2 UCRT64 / MinGW-w64),
+# Linux, macOS and Haiku. (The native Haiku application builds with the
+# Makefile, the Linux tests also with tests/linux.)
 #
 #   cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build
 #
-# Builds bebox-headless, bebox-img and the tests; on Windows also the
-# application (BeBox.exe). On Windows everything links statically (no
-# MSYS2 DLLs needed).
+# Builds the Qt application (BeBox, BeBoxQt.exe on Windows) when Qt 6 is
+# found, bebox-headless, bebox-img and the tests; on Windows also the Win32
+# application (BeBox.exe). On Windows all but the Qt application link
+# statically (no MSYS2 DLLs needed).
 
 cmake_minimum_required(VERSION 3.20)
 project(BeBox VERSION 1.2 LANGUAGES CXX)
@@ -20,6 +22,7 @@ endif()
 
 option(BEBOX_TESTS "Build the core's test programs" ON)
 option(BEBOX_NETWORK "User mode networking with libslirp" ON)
+option(BEBOX_QT "The Qt application (when Qt 6 is found)" ON)
 
 # -ffp-contract=off: the PowerPC FPU rounds each multiply and add itself.
 add_compile_options(-ffp-contract=off -Wall -Wextra -Wno-unused-parameter)
@@ -71,8 +74,7 @@ if(BEBOX_NETWORK)
 	endif()
 endif()
 
-# The front end's portable part: settings and profiles, the command line,
-# shared folder copies.
+# What the Windows and Qt front ends share: settings and profiles.
 add_library(bebox_frontend STATIC src/frontend/CommandLine.cpp
 	src/frontend/JobQueue.cpp src/frontend/Settings.cpp)
 target_link_libraries(bebox_frontend PUBLIC bebox_core)
@@ -89,6 +91,15 @@ if(WIN32)
 	enable_language(RC)
 	add_subdirectory(src/win32)
 	bebox_link_statically(BeBox)
+endif()
+
+if(BEBOX_QT)
+	find_package(Qt6 6.5 QUIET COMPONENTS Widgets)
+	if(Qt6Widgets_FOUND)
+		add_subdirectory(src/qt)
+	else()
+		message(STATUS "Qt 6 not found: no Qt application")
+	endif()
 endif()
 
 if(BEBOX_TESTS)

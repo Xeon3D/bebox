@@ -1207,7 +1207,7 @@ DrawSidebarItem(PrefsWindow* window, const DRAWITEMSTRUCT* draw)
 	FillRect(dc, &rect, background);
 	DeleteObject(background);
 	if (selected) {
-		// an accent bar on the left
+		// an accent bar on the left, as in the Qt front end
 		RECT bar = rect;
 		InflateRect(&bar, 0, -Scaled(sidebar, 8));
 		bar.right = bar.left + Scaled(sidebar, 3);
