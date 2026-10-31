@@ -26,6 +26,12 @@ option(BEBOX_QT "The Qt application (when Qt 6 is found)" ON)
 
 # -ffp-contract=off: the PowerPC FPU rounds each multiply and add itself.
 add_compile_options(-ffp-contract=off -Wall -Wextra -Wno-unused-parameter)
+# 32-bit x86 (Haiku's x86 architecture, i586 by default): doubles in SSE2,
+# as on x86-64, not in the x87's 80-bit registers, which round twice.
+if(CMAKE_SIZEOF_VOID_P EQUAL 4
+	AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86|BePC)$")
+	add_compile_options(-msse2 -mfpmath=sse)
+endif()
 add_compile_definitions(_FILE_OFFSET_BITS=64)
 
 file(GLOB_RECURSE CORE_SOURCES CONFIGURE_DEPENDS src/core/*.cpp)
@@ -52,6 +58,10 @@ if(WIN32)
 	target_link_libraries(bebox_core PUBLIC ws2_32)
 else()
 	target_link_libraries(bebox_core PUBLIC PkgConfig::ZLIB)
+endif()
+if(HAIKU)
+	# sockets (the TCP serial ports, libslirp's addresses) are in libnetwork
+	target_link_libraries(bebox_core PUBLIC network)
 endif()
 
 if(BEBOX_NETWORK)

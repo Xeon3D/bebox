@@ -403,8 +403,8 @@ on all of them:
   cannot move the pointer on Wayland, which capturing the mouse needs.
   `QT_QPA_PLATFORM=wayland` (or `-platform wayland`) overrides that.
 
-It has been built and booted on Windows and Linux (Ubuntu under WSL), not
-yet on macOS or Haiku.
+It has been built and booted on Windows, Linux (Ubuntu under WSL, CachyOS
+with KDE Plasma) and 32-bit Haiku R1/beta6; not yet on macOS.
 
 ## Building
 
@@ -412,6 +412,20 @@ On Haiku (with `haiku_devel`, `zlib_devel` and `libslirp_devel`): `make`
 builds the app;
 `package/build-package.sh` builds the app and the tools and creates the
 package.
+
+On 32-bit Haiku (x86_gcc2 with the x86 secondary architecture), the same
+with the `_x86` packages (`haiku_x86_devel`, `zlib_x86_devel`,
+`libslirp_x86_devel`) and under `setarch x86`: `setarch x86 make`. The
+CMake build (the tools and the Qt application) needs `cmake_x86`,
+`ninja_x86`, `qt6_base_x86_devel`, `qt6_multimedia_x86_devel` and
+`libsdl2_x86_devel`, and the x86 pkg-config files:
+
+    export PKG_CONFIG_PATH=/boot/system/develop/lib/x86/pkgconfig
+    setarch x86 cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+    setarch x86 cmake --build build
+
+On 32-bit x86 the floating point is SSE2 (`-msse2 -mfpmath=sse`, both
+builds add it): a Pentium 4 or later.
 
 On Windows, with MSYS2's UCRT64 environment (`pacman -S
 mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake

@@ -50,6 +50,39 @@ inline u32 SwapSized(u32 v, int size)
 	return v & 0xff;
 }
 
+// (a * b + add) / divisor, rounded down, with the product in 128 bits; the
+// quotient must fit in 64. Hosts without __int128 (32-bit ones) multiply in
+// 32-bit halves and divide bit by bit.
+inline u64 MulDiv(u64 a, u64 b, u64 divisor, u64 add = 0)
+{
+#ifdef __SIZEOF_INT128__
+	return (u64)(((unsigned __int128)a * b + add) / divisor);
+#else
+	u64 aLow = (u32)a, aHigh = a >> 32, bLow = (u32)b, bHigh = b >> 32;
+	u64 lowLow = aLow * bLow, lowHigh = aLow * bHigh;
+	u64 highLow = aHigh * bLow, highHigh = aHigh * bHigh;
+	u64 middle = (lowLow >> 32) + (u32)lowHigh + (u32)highLow;
+	u64 low = (middle << 32) | (u32)lowLow;
+	u64 high = highHigh + (lowHigh >> 32) + (highLow >> 32) + (middle >> 32);
+	low += add;
+	if (low < add)
+		high++;
+
+	u64 remainder = high % divisor;
+	u64 quotient = 0;
+	for (int bit = 63; bit >= 0; bit--) {
+		bool carry = (remainder >> 63) != 0;
+		remainder = (remainder << 1) | ((low >> bit) & 1);
+		quotient <<= 1;
+		if (carry || remainder >= divisor) {
+			remainder -= divisor;
+			quotient |= 1;
+		}
+	}
+	return quotient;
+#endif
+}
+
 // Index of a bus master for accesses: CPUs are 0 and 1.
 enum { kInitiatorCpu0 = 0, kInitiatorCpu1 = 1, kInitiatorDma = 8 };
 

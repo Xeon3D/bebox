@@ -134,7 +134,7 @@ ScreenView::PreferredSize()
 
 
 void
-ScreenView::FrameReady(const uint32* pixels, int width, int height,
+ScreenView::FrameReady(const bebox::u32* pixels, int width, int height,
 	int stride, int top, int bottom)
 {
 	{
