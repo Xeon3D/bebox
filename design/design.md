@@ -30,6 +30,9 @@ src/core/      portable C++17, no Haiku headers: the machine
                EmulatorThread (real time pacing on its own thread),
                Platform (the POSIX file calls, also on Windows)
 src/haiku/     the Haiku application
+src/frontend/  the front end's portable part: Settings (settings and
+               profiles), CommandLine, JobQueue (shared folder copies),
+               the preferences' icons and the script that draws them
 src/win32/     the Windows application (Win32: MainWindow, ScreenView,
                PrefsDialog, WinAudio through waveOut, KeyMap from scan
                code set 1)

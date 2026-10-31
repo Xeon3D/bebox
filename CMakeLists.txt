@@ -4,8 +4,9 @@
 #   cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build
 #
-# On Windows everything links statically (no MSYS2 DLLs needed): BeBox.exe
-# (the application), bebox-headless.exe, bebox-img.exe and the tests.
+# Builds bebox-headless, bebox-img and the tests; on Windows also the
+# application (BeBox.exe). On Windows everything links statically (no
+# MSYS2 DLLs needed).
 
 cmake_minimum_required(VERSION 3.20)
 project(BeBox VERSION 1.2 LANGUAGES CXX)
@@ -33,10 +34,16 @@ find_package(Threads REQUIRED)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 target_link_libraries(bebox_core PUBLIC Threads::Threads)
 
+# Windows: an executable that needs no MSYS2 DLLs.
+function(bebox_link_statically target)
+	if(WIN32)
+		target_link_options(${target} PRIVATE -static -static-libgcc
+			-static-libstdc++)
+	endif()
+endfunction()
+
 if(WIN32)
 	# libslirp and GLib as static libraries, with their system libraries.
-	target_link_options(bebox_core PUBLIC -static -static-libgcc
-		-static-libstdc++)
 	target_link_libraries(bebox_core PUBLIC ${ZLIB_STATIC_LIBRARIES})
 	target_link_directories(bebox_core PUBLIC ${ZLIB_STATIC_LIBRARY_DIRS})
 	target_link_libraries(bebox_core PUBLIC ws2_32)
@@ -64,15 +71,24 @@ if(BEBOX_NETWORK)
 	endif()
 endif()
 
+# The front end's portable part: settings and profiles, the command line,
+# shared folder copies.
+add_library(bebox_frontend STATIC src/frontend/CommandLine.cpp
+	src/frontend/JobQueue.cpp src/frontend/Settings.cpp)
+target_link_libraries(bebox_frontend PUBLIC bebox_core)
+
 add_executable(bebox-headless src/headless/main.cpp)
 target_link_libraries(bebox-headless PRIVATE bebox_core)
+bebox_link_statically(bebox-headless)
 
 add_executable(bebox-img tools/bebox-img/main.cpp)
 target_link_libraries(bebox-img PRIVATE bebox_core)
+bebox_link_statically(bebox-img)
 
 if(WIN32)
 	enable_language(RC)
 	add_subdirectory(src/win32)
+	bebox_link_statically(BeBox)
 endif()
 
 if(BEBOX_TESTS)
@@ -80,5 +96,6 @@ if(BEBOX_TESTS)
 			bfs-tests hobbit-tests)
 		add_executable(${test} tests/linux/${test}.cpp)
 		target_link_libraries(${test} PRIVATE bebox_core)
+		bebox_link_statically(${test})
 	endforeach()
 endif()

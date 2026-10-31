@@ -112,68 +112,6 @@ HasExtension(const std::string& path, const char* const* extensions)
 }	// namespace
 
 
-// #pragma mark - JobQueue
-
-
-JobQueue::JobQueue()
-	:
-	fBusy(false),
-	fQuit(false),
-	fThread(&JobQueue::_Run, this)
-{
-}
-
-
-JobQueue::~JobQueue()
-{
-	{
-		std::lock_guard<std::mutex> lock(fLock);
-		fQuit = true;
-	}
-	fCondition.notify_all();
-	fThread.join();
-}
-
-
-void
-JobQueue::Add(std::function<void()> job)
-{
-	{
-		std::lock_guard<std::mutex> lock(fLock);
-		fJobs.push_back(std::move(job));
-	}
-	fCondition.notify_all();
-}
-
-
-void
-JobQueue::Drain()
-{
-	std::unique_lock<std::mutex> lock(fLock);
-	fCondition.wait(lock, [this]() { return fJobs.empty() && !fBusy; });
-}
-
-
-void
-JobQueue::_Run()
-{
-	std::unique_lock<std::mutex> lock(fLock);
-	while (true) {
-		fCondition.wait(lock, [this]() { return fQuit || !fJobs.empty(); });
-		if (fJobs.empty())
-			return;		// quitting
-		std::function<void()> job = std::move(fJobs.front());
-		fJobs.pop_front();
-		fBusy = true;
-		lock.unlock();
-		job();
-		lock.lock();
-		fBusy = false;
-		fCondition.notify_all();
-	}
-}
-
-
 // #pragma mark - MainWindow
 
 
@@ -258,8 +196,9 @@ MainWindow::Create(int showCommand)
 		800, 600, nullptr, fMenuBar, GetModuleHandleW(nullptr), this);
 	if (fWindow == nullptr)
 		return false;
-	const RECT& frame = fSettings.windowFrame;
-	if (frame.right > frame.left && frame.bottom > frame.top) {
+	const WindowFrame& saved = fSettings.windowFrame;
+	RECT frame = { saved.left, saved.top, saved.right, saved.bottom };
+	if (saved.IsValid()) {
 		// where it was, if that is still on a screen
 		HMONITOR monitor = MonitorFromRect(&frame, MONITOR_DEFAULTTONULL);
 		if (monitor != nullptr) {
@@ -1948,8 +1887,11 @@ MainWindow::_Message(UINT message, WPARAM wParam, LPARAM lParam)
 				_SetFullScreen(false);
 			WINDOWPLACEMENT placement = {};
 			placement.length = sizeof(placement);
-			if (GetWindowPlacement(fWindow, &placement))
-				fSettings.windowFrame = placement.rcNormalPosition;
+			if (GetWindowPlacement(fWindow, &placement)) {
+				const RECT& frame = placement.rcNormalPosition;
+				fSettings.windowFrame = { (int)frame.left, (int)frame.top,
+					(int)frame.right, (int)frame.bottom };
+			}
 			fSettings.Save();
 			DestroyWindow(fWindow);
 			return 0;

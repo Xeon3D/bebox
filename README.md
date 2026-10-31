@@ -380,6 +380,10 @@ and command line options. The differences:
   controllers Windows lists.
 - `--log CATEGORY=LEVEL` writes to the console BeBox was started from.
 
+The preferences are a sidebar of sections (Machine, ROM & NVRAM, Display,
+Input devices, Sound, Network, Ports, Storage), each with its pages on
+tabs where it has more than one.
+
 ## Building
 
 On Haiku (with `haiku_devel`, `zlib_devel` and `libslirp_devel`): `make`
@@ -399,6 +403,9 @@ builds `build/src/win32/BeBox.exe`, `bebox-headless.exe`, `bebox-img.exe`
 and the core's tests, all linked statically (they need no DLLs beyond
 Windows' own). The same CMake build works on Linux (without the
 application).
+
+The preferences' icons are drawn by `src/frontend/make_page_icons.py`
+(`python src/frontend/make_page_icons.py src/frontend/icons`).
 
 The emulator core is portable C++17 and is tested on Linux:
 

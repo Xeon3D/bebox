@@ -4,7 +4,7 @@
  */
 #include "LedColumn.h"
 
-#include "Settings.h"
+#include "frontend/Settings.h"
 
 #include <algorithm>
 #include <cmath>
