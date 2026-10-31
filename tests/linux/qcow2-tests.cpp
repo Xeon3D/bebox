@@ -18,7 +18,9 @@
 #include <string>
 #include "core/host/Platform.h"
 #ifndef _WIN32
+#	include <fcntl.h>
 #	include <sys/resource.h>
+#	include <unistd.h>
 #endif
 #include <vector>
 
@@ -273,6 +275,25 @@ LimitFileSize(rlim_t limit)
 }
 
 
+// Whether the system enforces the file size limit (Haiku takes it but
+// lets files grow past it): a write over a 4 KB limit must stop at it.
+bool
+FileSizeLimitWorks(const std::string& dir)
+{
+	std::string path = dir + "/limit-probe";
+	signal(SIGXFSZ, SIG_IGN);
+	LimitFileSize(4096);
+	int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	char block[8192] = {};
+	ssize_t written = fd >= 0 ? write(fd, block, sizeof(block)) : -1;
+	if (fd >= 0)
+		close(fd);
+	LimitFileSize(RLIM_INFINITY);
+	unlink(path.c_str());
+	return fd >= 0 && written != (ssize_t)sizeof(block);
+}
+
+
 u64
 FileSize(const std::string& path)
 {
@@ -290,6 +311,11 @@ FileSize(const std::string& path)
 void
 TestDiskFull(const std::string& dir, bool qemu)
 {
+	if (!FileSizeLimitWorks(dir)) {
+		printf("skip: full disk (this system does not enforce file size "
+			"limits)\n");
+		return;
+	}
 	std::string path = dir + "/full.qcow2";
 	unlink(path.c_str());
 	std::string error;
@@ -351,8 +377,9 @@ TestDiskFull(const std::string& dir, bool qemu)
 	// The reference count table (one 512 byte cluster: 64 blocks of 256
 	// clusters, 8 MB) has to grow when the file reaches 8 MB: the disk is
 	// full just then.
+	// (bounded: one pass over the disk, should the limit not hold)
 	LimitFileSize((8 << 20) + kCluster + kCluster / 2);
-	while (image && write(true))
+	for (u64 i = 0; image && i < kSize / kCluster && write(true); i++)
 		;
 	LimitFileSize(RLIM_INFINITY);
 	if (FileSize(path) > (8 << 20) || failures != 1)
