@@ -1,0 +1,65 @@
+# Builds BeBox and runs the core's tests on Windows and Linux: the Win32
+# application, bebox-headless, bebox-img and the device, Hobbit, QCOW2 and
+# BFS tests.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Windows (MSYS2 UCRT64)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          pacboy: >-
+            gcc:p cmake:p ninja:p pkgconf:p zlib:p libslirp:p
+      - name: Configure
+        run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: |
+          mkdir -p ci-work/qcow2 ci-work/bfs
+          build/device-tests
+          build/hobbit-tests
+          build/qcow2-tests ci-work/qcow2
+          build/bfs-tests ci-work/bfs
+          test -f build/src/win32/BeBox.exe
+
+  linux:
+    name: Linux (Ubuntu 26.04)
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build g++ pkg-config \
+            zlib1g-dev libslirp-dev
+      - name: Configure
+        run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build
+      - name: Test
+        run: |
+          mkdir -p ci-work/qcow2 ci-work/bfs
+          build/device-tests
+          build/hobbit-tests
+          build/qcow2-tests ci-work/qcow2
+          build/bfs-tests ci-work/bfs
