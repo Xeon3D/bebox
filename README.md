@@ -380,6 +380,32 @@ and command line options. The differences:
   controllers Windows lists.
 - `--log CATEGORY=LEVEL` writes to the console BeBox was started from.
 
+The preferences are a sidebar of sections (Machine, ROM & NVRAM, Display,
+Input devices, Sound, Network, Ports, Storage), each with its pages on
+tabs where it has more than one, as in the Qt application.
+
+## The Qt application
+
+The Qt 6 application is the same emulator for Windows, Linux, macOS and
+Haiku, with the same window, menus, preferences, profiles and command line
+on all of them:
+
+- The preferences have the same sidebar of sections as the Windows
+  application, with the same icons.
+- Settings and profiles are where each system keeps them: `%APPDATA%\BeBox`
+  on Windows (shared with `BeBox.exe`), `~/config/settings/BeBox` on Haiku
+  (shared with the native app), the user's config folder on Linux and
+  macOS.
+- Sound goes through Qt Multimedia and joysticks through SDL2; without
+  them it builds silent or without joysticks.
+- On Haiku, shared folders keep BeOS attributes, as in the native app.
+- On Linux under Wayland it runs through XWayland when there is one: Qt
+  cannot move the pointer on Wayland, which capturing the mouse needs.
+  `QT_QPA_PLATFORM=wayland` (or `-platform wayland`) overrides that.
+
+It has been built and booted on Windows and Linux (Ubuntu under WSL), not
+yet on macOS or Haiku.
+
 ## Building
 
 On Haiku (with `haiku_devel`, `zlib_devel` and `libslirp_devel`): `make`
@@ -397,8 +423,19 @@ mingw-w64-ucrt-x86_64-zlib mingw-w64-ucrt-x86_64-libslirp`):
 
 builds `build/src/win32/BeBox.exe`, `bebox-headless.exe`, `bebox-img.exe`
 and the core's tests, all linked statically (they need no DLLs beyond
-Windows' own). The same CMake build works on Linux (without the
-application).
+Windows' own).
+
+With Qt 6.5 or later installed, the same build also makes the Qt
+application: `build/src/qt/BeBoxQt.exe` on Windows (`pacman -S
+mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-multimedia
+mingw-w64-ucrt-x86_64-SDL2`; it uses MSYS2's Qt DLLs, so run it from the
+UCRT64 shell or copy them next to it with `windeployqt6`),
+`build/src/qt/BeBox` on Linux (`apt install qt6-base-dev
+qt6-multimedia-dev libsdl2-dev libslirp-dev zlib1g-dev cmake ninja-build
+g++`), an app bundle on macOS. `-DBEBOX_QT=OFF` leaves it out.
+
+The preferences' icons are drawn by `src/frontend/make_page_icons.py`
+(`python src/frontend/make_page_icons.py src/frontend/icons`).
 
 The emulator core is portable C++17 and is tested on Linux:
 

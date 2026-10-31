@@ -7,7 +7,21 @@
 
 #define IDI_BEBOX					1
 
+// Preferences section and tab icons (src/frontend/icons)
+#define IDI_PAGE_MACHINE			10
+#define IDI_PAGE_ROM				11
+#define IDI_PAGE_DISPLAY			12
+#define IDI_PAGE_INPUT				13
+#define IDI_PAGE_SOUND				14
+#define IDI_PAGE_NETWORK			15
+#define IDI_PAGE_PORTS				16
+#define IDI_PAGE_STORAGE			17
+#define IDI_PAGE_PERFORMANCE		18
+#define IDI_PAGE_KEYBOARD			19
+#define IDI_PAGE_JOYSTICK			20
+
 // Dialogs
+#define IDD_PREFS					99
 #define IDD_PREFS_MACHINE			100
 #define IDD_PREFS_ROMS				101
 #define IDD_PREFS_DISPLAY			102
@@ -98,5 +112,12 @@
 // Profile name dialog
 #define IDC_PROFILE_NAME			1150
 #define IDC_PROFILE_PROMPT			1151
+
+// Preferences window (the pages go on its tabs or in its frame)
+#define IDC_PREFS_SIDEBAR			1160
+#define IDC_PREFS_ICON				1161
+#define IDC_PREFS_TITLE				1162
+#define IDC_PREFS_TABS				1163
+#define IDC_PREFS_FRAME				1164
 
 #endif	// WIN32_RESOURCE_H

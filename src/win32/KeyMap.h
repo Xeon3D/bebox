@@ -16,7 +16,4 @@
 // key and lParam); 0 for keys without an AT equivalent.
 bebox::u32 WindowsKeyToSet2(unsigned int virtualKey, long lParam);
 
-// The set 2 code of a set 1 scan code (extended: E0 prefix); 0 if none.
-bebox::u32 Set1ToSet2(unsigned int scanCode, bool extended);
-
 #endif	// WIN32_KEY_MAP_H

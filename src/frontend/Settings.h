@@ -1,20 +1,20 @@
 /*
- * BeBox emulator for Windows - persistent settings and machine profiles.
+ * BeBox emulator - persistent settings and machine profiles, for the
+ * Windows and Qt front ends.
  * Copyright 2026, the BeBox emulator authors. MIT License.
  *
- * In %APPDATA%\BeBox: "settings.ini" holds what all profiles share
+ * In the settings folder (SetDirectory(): %APPDATA%\BeBox on Windows, the
+ * config folder elsewhere): "settings.ini" holds what all profiles share
  * (keyboard and mouse, the LED look, the window) and the current
- * profile's name; each profile is a folder in Profiles\ with the
+ * profile's name; each profile is a folder in Profiles/ with the
  * machine's own settings.ini, boot ROM flash (flash.bin), NVRAM
  * (nvram.bin) and shared folder volumes. The files are lines of
- * "key=value" in UTF-8.
+ * "key=value" in UTF-8; paths are UTF-8 too.
  */
-#ifndef WIN32_SETTINGS_H
-#define WIN32_SETTINGS_H
+#ifndef BEBOX_FRONTEND_SETTINGS_H
+#define BEBOX_FRONTEND_SETTINGS_H
 
 #include "core/board/MachineConfig.h"
-
-#include <windows.h>
 
 #include <string>
 #include <vector>
@@ -22,14 +22,23 @@
 // Keys that release the mouse (and are not passed to the BeBox).
 enum HostKey {
 	kHostKeyRightControl = 0,
-	kHostKeyRightAlt = 1,
-	kHostKeyRightWindows = 2,
+	kHostKeyRightAlt = 1,		// Right Option on a Mac
+	kHostKeyRightWindows = 2,	// Right Command on a Mac
 	kHostKeyMenu = 3
 };
 
 enum LedStyle {
 	kLedStyleAuthentic = 0,		// lime and amber
 	kLedStyleRedGreen = 1
+};
+
+struct WindowFrame {
+	int left = 0;
+	int top = 0;
+	int right = 0;
+	int bottom = 0;
+
+	bool IsValid() const { return right > left && bottom > top; }
 };
 
 class Settings {
@@ -40,6 +49,8 @@ public:
 			bool				Load();
 			bool				Save() const;
 
+			// Where the settings live (made if missing); set before Load().
+	static	void				SetDirectory(const std::string& directory);
 	static	std::string			Directory();
 	static	std::string			ProfilesDirectory();
 			std::string			ProfileDirectory() const;
@@ -80,10 +91,10 @@ public:
 			int					soundVolume;	// percent
 			// Serial destinations: "" (not connected), "console",
 			// "tcp-listen:[ADDR:]PORT", "tcp-connect:HOST:PORT",
-			// "host:COMn", "file:PATH".
+			// "host:DEVICE", "file:PATH".
 			std::string			serial[4];
-			// Host joysticks (winmm joystick numbers, "0"-"15") on the
-			// BeBox's four game port sticks; "" = none.
+			// Host joysticks on the BeBox's four game port sticks (the
+			// front end's device numbers); "" = none.
 			std::string			joystick[4];
 			bool				ethernet;
 			int					ethernetPort;
@@ -100,7 +111,7 @@ public:
 			int					mouseSpeed;		// percent
 			bool				swapMouseButtons;
 			bool				captureOnClick;
-			RECT				windowFrame;	// empty: not placed yet
+			WindowFrame			windowFrame;	// invalid: not placed yet
 
 private:
 			void				_ResetProfile();
@@ -108,4 +119,15 @@ private:
 			bool				_SaveProfile() const;
 };
 
-#endif	// WIN32_SETTINGS_H
+
+// Whether going from 'old' to 'now' needs the machine to start again: all
+// but the floppy, the discs in the CD-ROM drives and what only the window
+// uses (sound volume, speed limit, joysticks, mouse, LEDs).
+bool NeedsRestart(const Settings& old, const Settings& now);
+
+// A file chosen as the boot ROM image: a ROM update image is used as it is;
+// from a BeOS CD (or disk) image, /beos/etc/bebox_bootmain.image is copied
+// into the settings folder's BootROMs. The path to use, or "" with 'error'.
+std::string BootRomFromFile(const std::string& path, std::string& error);
+
+#endif	// BEBOX_FRONTEND_SETTINGS_H

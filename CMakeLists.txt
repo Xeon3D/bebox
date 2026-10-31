@@ -1,11 +1,14 @@
-# BeBox emulator: CMake build for Windows (MSYS2 UCRT64 / MinGW-w64) and
-# Linux. Haiku builds with the Makefile, Linux tests with tests/linux.
+# BeBox emulator: CMake build for Windows (MSYS2 UCRT64 / MinGW-w64),
+# Linux, macOS and Haiku. (The native Haiku application builds with the
+# Makefile, the Linux tests also with tests/linux.)
 #
 #   cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build
 #
-# On Windows everything links statically (no MSYS2 DLLs needed): BeBox.exe
-# (the application), bebox-headless.exe, bebox-img.exe and the tests.
+# Builds the Qt application (BeBox, BeBoxQt.exe on Windows) when Qt 6 is
+# found, bebox-headless, bebox-img and the tests; on Windows also the Win32
+# application (BeBox.exe). On Windows all but the Qt application link
+# statically (no MSYS2 DLLs needed).
 
 cmake_minimum_required(VERSION 3.20)
 project(BeBox VERSION 1.2 LANGUAGES CXX)
@@ -19,6 +22,7 @@ endif()
 
 option(BEBOX_TESTS "Build the core's test programs" ON)
 option(BEBOX_NETWORK "User mode networking with libslirp" ON)
+option(BEBOX_QT "The Qt application (when Qt 6 is found)" ON)
 
 # -ffp-contract=off: the PowerPC FPU rounds each multiply and add itself.
 add_compile_options(-ffp-contract=off -Wall -Wextra -Wno-unused-parameter)
@@ -33,10 +37,16 @@ find_package(Threads REQUIRED)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 target_link_libraries(bebox_core PUBLIC Threads::Threads)
 
+# Windows: an executable that needs no MSYS2 DLLs.
+function(bebox_link_statically target)
+	if(WIN32)
+		target_link_options(${target} PRIVATE -static -static-libgcc
+			-static-libstdc++)
+	endif()
+endfunction()
+
 if(WIN32)
 	# libslirp and GLib as static libraries, with their system libraries.
-	target_link_options(bebox_core PUBLIC -static -static-libgcc
-		-static-libstdc++)
 	target_link_libraries(bebox_core PUBLIC ${ZLIB_STATIC_LIBRARIES})
 	target_link_directories(bebox_core PUBLIC ${ZLIB_STATIC_LIBRARY_DIRS})
 	target_link_libraries(bebox_core PUBLIC ws2_32)
@@ -64,15 +74,32 @@ if(BEBOX_NETWORK)
 	endif()
 endif()
 
+# What the Windows and Qt front ends share: settings and profiles.
+add_library(bebox_frontend STATIC src/frontend/CommandLine.cpp
+	src/frontend/JobQueue.cpp src/frontend/Settings.cpp)
+target_link_libraries(bebox_frontend PUBLIC bebox_core)
+
 add_executable(bebox-headless src/headless/main.cpp)
 target_link_libraries(bebox-headless PRIVATE bebox_core)
+bebox_link_statically(bebox-headless)
 
 add_executable(bebox-img tools/bebox-img/main.cpp)
 target_link_libraries(bebox-img PRIVATE bebox_core)
+bebox_link_statically(bebox-img)
 
 if(WIN32)
 	enable_language(RC)
 	add_subdirectory(src/win32)
+	bebox_link_statically(BeBox)
+endif()
+
+if(BEBOX_QT)
+	find_package(Qt6 6.5 QUIET COMPONENTS Widgets)
+	if(Qt6Widgets_FOUND)
+		add_subdirectory(src/qt)
+	else()
+		message(STATUS "Qt 6 not found: no Qt application")
+	endif()
 endif()
 
 if(BEBOX_TESTS)
@@ -80,5 +107,6 @@ if(BEBOX_TESTS)
 			bfs-tests hobbit-tests)
 		add_executable(${test} tests/linux/${test}.cpp)
 		target_link_libraries(${test} PRIVATE bebox_core)
+		bebox_link_statically(${test})
 	endforeach()
 endif()

@@ -7,13 +7,13 @@
 #include "Util.h"
 #include "resource.h"
 
-#include "core/storage/BfsReader.h"
 #include "core/storage/DiskImage.h"
 #include "core/storage/Qcow2Image.h"
 
 #include <commctrl.h>
 #include <mmsystem.h>
 #include <prsht.h>
+#include <uxtheme.h>
 
 #include <cstdio>
 #include <cstring>
@@ -21,8 +21,6 @@
 using bebox::MachineConfig;
 
 namespace {
-
-const char* const kBootRomPath = "/beos/etc/bebox_bootmain.image";
 
 const wchar_t* const kDiskFilters = L"Disk images (*.img, *.qcow2, *.hdf, "
 	L"*.raw, *.dsk)\0*.img;*.qcow2;*.hdf;*.raw;*.dsk\0All files\0*.*\0";
@@ -259,51 +257,16 @@ MachinePage(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam)
 // #pragma mark - ROM & NVRAM
 
 
-// Takes a boot ROM update image as it is; from a BeOS CD (or disk) image,
-// copies /beos/etc/bebox_bootmain.image into the settings directory.
-// The path to use, or "" (an error was shown).
+// A boot ROM image or a BeOS CD image to copy one from (BootRomFromFile):
+// the path to use, or "" (an error was shown).
 std::string
 BootRomChosen(HWND dialog, const std::string& path)
 {
-	char header[12] = {};
-	FILE* file = _wfopen(Widen(path).c_str(), L"rb");
-	if (file != nullptr) {
-		fread(header, 1, sizeof(header), file);
-		fclose(file);
-	}
-	if (memcmp(header, "Joy!peff", 8) == 0
-		|| (memcmp(header, "BOOT", 4) == 0
-			&& memcmp(header + 4, "Joy!peff", 8) == 0))
-		return path;
-
-	std::vector<bebox::u8> data;
 	std::string error;
-	if (!bebox::BfsReader::ExtractFromImage(path, kBootRomPath, data,
-			error)) {
-		ShowMessage(dialog, Widen(Leaf(path) + " is neither a boot ROM image "
-			"nor a BeOS CD image with " + kBootRomPath + " (" + error + ")."),
-			MB_ICONERROR);
-		return "";
-	}
-	// e.g. "BeOS Release 3 PowerPC.iso" -> "BeOS Release 3 PowerPC.rom"
-	std::string name = Leaf(path);
-	size_t dot = name.rfind('.');
-	if (dot != std::string::npos && dot > 0)
-		name.resize(dot);
-	std::string directory = Settings::Directory() + "\\BootROMs";
-	CreateDirectories(directory);
-	std::string target = directory + "\\" + name + ".rom";
-	FILE* output = _wfopen(Widen(target).c_str(), L"wb");
-	bool ok = output != nullptr
-		&& fwrite(data.data(), 1, data.size(), output) == data.size();
-	if (output != nullptr)
-		ok = fclose(output) == 0 && ok;
-	if (!ok) {
-		ShowMessage(dialog, Widen("Cannot write " + target + "."),
-			MB_ICONERROR);
-		return "";
-	}
-	return target;
+	std::string result = BootRomFromFile(path, error);
+	if (result.empty())
+		ShowMessage(dialog, Widen(error), MB_ICONERROR);
+	return result;
 }
 
 
@@ -978,55 +941,402 @@ NameProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 
-// The parts of the machine a running one cannot change.
-bool
-SameHardware(const MachineConfig& a, const MachineConfig& b)
+// #pragma mark - The preferences window
+
+
+// The sections in the sidebar and the pages on their tabs.
+struct SectionTab {
+	int				page;
+	const wchar_t*	label;
+	int				icon;
+};
+
+struct Section {
+	const wchar_t*	name;
+	int				icon;
+	int				tabCount;
+	SectionTab		tabs[2];
+};
+
+const Section kSections[] = {
+	{ L"Machine", IDI_PAGE_MACHINE, 2,
+		{ { kPageMachine, L"Machine", IDI_PAGE_MACHINE },
+		  { kPageAdvanced, L"Performance", IDI_PAGE_PERFORMANCE } } },
+	{ L"ROM & NVRAM", IDI_PAGE_ROM, 1, { { kPageRoms, nullptr, 0 } } },
+	{ L"Display", IDI_PAGE_DISPLAY, 1, { { kPageDisplay, nullptr, 0 } } },
+	{ L"Input devices", IDI_PAGE_INPUT, 2,
+		{ { kPageInput, L"Keyboard and mouse", IDI_PAGE_KEYBOARD },
+		  { kPageGamePorts, L"Game ports", IDI_PAGE_JOYSTICK } } },
+	{ L"Sound", IDI_PAGE_SOUND, 1, { { kPageSound, nullptr, 0 } } },
+	{ L"Network", IDI_PAGE_NETWORK, 1, { { kPageNetwork, nullptr, 0 } } },
+	{ L"Ports", IDI_PAGE_PORTS, 1, { { kPageSerial, nullptr, 0 } } },
+	{ L"Storage", IDI_PAGE_STORAGE, 1, { { kPageStorage, nullptr, 0 } } }
+};
+const int kSectionCount = sizeof(kSections) / sizeof(kSections[0]);
+
+struct PageTemplate {
+	int		dialog;
+	DLGPROC	proc;
+};
+
+const PageTemplate kPageTemplates[kPageCount] = {
+	{ IDD_PREFS_MACHINE, MachinePage },
+	{ IDD_PREFS_ROMS, RomsPage },
+	{ IDD_PREFS_DISPLAY, DisplayPage },
+	{ IDD_PREFS_STORAGE, StoragePage },
+	{ IDD_PREFS_SOUND, SoundPage },
+	{ IDD_PREFS_INPUT, InputPage },
+	{ IDD_PREFS_GAMEPORTS, GamePortsPage },
+	{ IDD_PREFS_NETWORK, NetworkPage },
+	{ IDD_PREFS_SERIAL, SerialPage },
+	{ IDD_PREFS_ADVANCED, AdvancedPage }
+};
+
+struct PrefsWindow {
+	PrefsState*	state;
+	HWND		pages[kPageCount];
+	HICON		sectionIcons[kSectionCount];
+	HICON		headerIcon;
+	HFONT		titleFont;
+	HIMAGELIST	tabImages;
+	int			tabImage[kSectionCount][2];
+	int			section;
+	int			page;		// shown
+	int			busy;		// asking the pages
+};
+
+
+int
+Scaled(HWND window, int size)
 {
-	if (a.model != b.model || a.ramMB != b.ramMB || a.cpuCount != b.cpuCount
-		|| a.boardRevision != b.boardRevision
-		|| a.ioCardRevision != b.ioCardRevision
-		|| a.videoCard != b.videoCard || a.vramMB != b.vramMB
-		|| a.quantumUs != b.quantumUs || a.cpiPercent != b.cpiPercent
-		|| a.threadPerCpu != b.threadPerCpu
-		|| a.hobbitKernelPath != b.hobbitKernelPath
-		|| a.nubRomPath != b.nubRomPath || a.mainRomPath != b.mainRomPath
-		|| a.ethernet != b.ethernet || a.ethernetPort != b.ethernetPort
-		|| a.ethernetIrq != b.ethernetIrq
-		|| memcmp(a.ethernetMac, b.ethernetMac, 6) != 0)
-		return false;
-	for (int i = 0; i < 2; i++) {
-		if (a.ideImage[i] != b.ideImage[i]
-			|| a.ideReadOnly[i] != b.ideReadOnly[i])
-			return false;
-	}
-	for (int id = 0; id < 7; id++) {
-		const MachineConfig::ScsiTarget& x = a.scsi[id];
-		const MachineConfig::ScsiTarget& y = b.scsi[id];
-		if (x.kind != y.kind)
-			return false;
-		// a disc goes into the running machine
-		if (x.kind != MachineConfig::ScsiTarget::kCdRom
-			&& (x.image != y.image || x.readOnly != y.readOnly))
-			return false;
-	}
-	return true;
+	return MulDiv(size, GetDpiForWindow(window), 96);
 }
+
+
+HICON
+LoadPageIcon(int id, int size)
+{
+	HICON icon = nullptr;
+	LoadIconWithScaleDown(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(id),
+		size, size, &icon);
+	return icon;
+}
+
+
+// The page notifications a property sheet sends: PSN_KILLACTIVE asks the
+// page whether its controls are valid (nonzero: they are not), PSN_APPLY
+// takes them into the working settings.
+LRESULT
+NotifyPage(HWND host, HWND page, UINT code)
+{
+	PSHNOTIFY notify = {};
+	notify.hdr.hwndFrom = host;
+	notify.hdr.code = code;
+	return SendMessageW(page, WM_NOTIFY, 0, (LPARAM)&notify);
+}
+
+
+// The shown page lets go (false: its controls are not valid).
+bool
+LeavePage(HWND host, PrefsWindow* window)
+{
+	if (window->page < 0)
+		return true;
+	window->busy++;
+	bool valid = NotifyPage(host, window->pages[window->page],
+		PSN_KILLACTIVE) == 0;
+	window->busy--;
+	return valid;
+}
+
+
+// Not while a page is asked or anything it opened (a message, a file
+// chooser, the new disk dialog) is still open.
+bool
+CanClose(HWND host, PrefsWindow* window)
+{
+	return window->busy == 0 && GetLastActivePopup(host) == host;
+}
+
+
+void
+ShowPage(HWND host, PrefsWindow* window, int page, bool onTabs)
+{
+	if (window->page >= 0)
+		ShowWindow(window->pages[window->page], SW_HIDE);
+
+	RECT area;
+	HWND tabs = GetDlgItem(host, IDC_PREFS_TABS);
+	GetWindowRect(tabs, &area);
+	MapWindowPoints(nullptr, host, (POINT*)&area, 2);
+	if (onTabs)
+		TabCtrl_AdjustRect(tabs, FALSE, &area);
+	else
+		InflateRect(&area, -Scaled(host, 2), -Scaled(host, 2));
+
+	window->page = page;
+	SetWindowPos(window->pages[page], HWND_TOP, area.left, area.top,
+		area.right - area.left, area.bottom - area.top, SWP_SHOWWINDOW);
+}
+
+
+void
+ShowSection(HWND host, PrefsWindow* window, int index, int tab = 0)
+{
+	const Section& section = kSections[index];
+	window->section = index;
+
+	SetDlgItemTextW(host, IDC_PREFS_TITLE, section.name);
+	if (window->headerIcon != nullptr)
+		DestroyIcon(window->headerIcon);
+	window->headerIcon = LoadPageIcon(section.icon, Scaled(host, 24));
+	SendDlgItemMessageW(host, IDC_PREFS_ICON, STM_SETICON,
+		(WPARAM)window->headerIcon, 0);
+
+	HWND tabs = GetDlgItem(host, IDC_PREFS_TABS);
+	bool onTabs = section.tabCount > 1;
+	TabCtrl_DeleteAllItems(tabs);
+	if (onTabs) {
+		for (int i = 0; i < section.tabCount; i++) {
+			TCITEMW item = {};
+			item.mask = TCIF_TEXT | TCIF_IMAGE;
+			item.pszText = (wchar_t*)section.tabs[i].label;
+			item.iImage = window->tabImage[index][i];
+			TabCtrl_InsertItem(tabs, i, &item);
+		}
+		TabCtrl_SetCurSel(tabs, tab);
+	}
+	ShowWindow(tabs, onTabs ? SW_SHOW : SW_HIDE);
+	ShowWindow(GetDlgItem(host, IDC_PREFS_FRAME), onTabs ? SW_HIDE : SW_SHOW);
+	ShowPage(host, window, section.tabs[tab].page, onTabs);
+	SendDlgItemMessageW(host, IDC_PREFS_SIDEBAR, LB_SETCURSEL, index, 0);
+}
+
+
+// Shows the page, in its section and on its tab.
+void
+RevealPage(HWND host, PrefsWindow* window, int page)
+{
+	for (int i = 0; i < kSectionCount; i++) {
+		for (int j = 0; j < kSections[i].tabCount; j++) {
+			if (kSections[i].tabs[j].page == page) {
+				ShowSection(host, window, i, j);
+				return;
+			}
+		}
+	}
+}
+
+
+void
+InitWindow(HWND host, PrefsWindow* window)
+{
+	HINSTANCE instance = GetModuleHandleW(nullptr);
+	SendMessageW(host, WM_SETICON, ICON_BIG,
+		(LPARAM)LoadIconW(instance, MAKEINTRESOURCEW(IDI_BEBOX)));
+	std::wstring title = Widen("BeBox preferences: "
+		+ window->state->settings->profile);
+	SetWindowTextW(host, title.c_str());
+
+	// the section's name a size larger and bold
+	LOGFONTW font;
+	GetObjectW((HFONT)SendMessageW(host, WM_GETFONT, 0, 0), sizeof(font),
+		&font);
+	font.lfHeight = font.lfHeight * 5 / 4;
+	font.lfWeight = FW_BOLD;
+	window->titleFont = CreateFontIndirectW(&font);
+	SendDlgItemMessageW(host, IDC_PREFS_TITLE, WM_SETFONT,
+		(WPARAM)window->titleFont, FALSE);
+
+	int small = Scaled(host, 16);
+	window->tabImages = ImageList_Create(small, small,
+		ILC_COLOR32 | ILC_MASK, 4, 0);
+	TabCtrl_SetImageList(GetDlgItem(host, IDC_PREFS_TABS), window->tabImages);
+
+	HWND sidebar = GetDlgItem(host, IDC_PREFS_SIDEBAR);
+	for (int i = 0; i < kSectionCount; i++) {
+		const Section& section = kSections[i];
+		window->sectionIcons[i] = LoadPageIcon(section.icon, Scaled(host, 24));
+		SendMessageW(sidebar, LB_ADDSTRING, 0, (LPARAM)section.name);
+		for (int j = 0; j < section.tabCount; j++) {
+			window->tabImage[i][j] = -1;
+			if (section.tabCount < 2)
+				continue;
+			HICON icon = LoadPageIcon(section.tabs[j].icon, small);
+			window->tabImage[i][j] = ImageList_AddIcon(window->tabImages,
+				icon);
+			DestroyIcon(icon);
+		}
+	}
+
+	// every page now, so OK takes all of them; the pages on tabs get the
+	// tabs' background
+	PROPSHEETPAGEW page = {};
+	page.lParam = (LPARAM)window->state;
+	for (int i = 0; i < kSectionCount; i++) {
+		for (int j = 0; j < kSections[i].tabCount; j++) {
+			int index = kSections[i].tabs[j].page;
+			HWND child = CreateDialogParamW(instance,
+				MAKEINTRESOURCEW(kPageTemplates[index].dialog), host,
+				kPageTemplates[index].proc, (LPARAM)&page);
+			LONG_PTR style = GetWindowLongPtrW(child, GWL_STYLE);
+			SetWindowLongPtrW(child, GWL_STYLE, style & ~WS_CAPTION);
+			SetWindowPos(child, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE
+				| SWP_NOZORDER | SWP_FRAMECHANGED);
+			if (kSections[i].tabCount > 1)
+				EnableThemeDialogTexture(child, ETDT_ENABLETAB);
+			window->pages[index] = child;
+		}
+	}
+	ShowSection(host, window, 0);
+}
+
+
+void
+DrawSidebarItem(PrefsWindow* window, const DRAWITEMSTRUCT* draw)
+{
+	if (draw->itemID == (UINT)-1)
+		return;
+	HDC dc = draw->hDC;
+	RECT rect = draw->rcItem;
+	HWND sidebar = draw->hwndItem;
+	bool selected = (draw->itemState & ODS_SELECTED) != 0;
+
+	HBRUSH background = CreateSolidBrush(selected
+		? RGB(0xcc, 0xe8, 0xff) : GetSysColor(COLOR_WINDOW));
+	FillRect(dc, &rect, background);
+	DeleteObject(background);
+	if (selected) {
+		// an accent bar on the left, as in the Qt front end
+		RECT bar = rect;
+		InflateRect(&bar, 0, -Scaled(sidebar, 8));
+		bar.right = bar.left + Scaled(sidebar, 3);
+		FillRect(dc, &bar, GetSysColorBrush(COLOR_HIGHLIGHT));
+	}
+
+	int size = Scaled(sidebar, 24);
+	int left = rect.left + Scaled(sidebar, 10);
+	DrawIconEx(dc, left, rect.top + (rect.bottom - rect.top - size) / 2,
+		window->sectionIcons[draw->itemID], size, size, 0, nullptr,
+		DI_NORMAL);
+
+	RECT text = rect;
+	text.left = left + size + Scaled(sidebar, 8);
+	SetBkMode(dc, TRANSPARENT);
+	SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
+	DrawTextW(dc, kSections[draw->itemID].name, -1, &text,
+		DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+	if ((draw->itemState & ODS_FOCUS) != 0
+		&& (draw->itemState & ODS_NOFOCUSRECT) == 0) {
+		DrawFocusRect(dc, &rect);
+	}
+}
+
+
+// OK: every page must be valid, then all of them go into the settings.
+bool
+ApplyPages(HWND host, PrefsWindow* window)
+{
+	if (!LeavePage(host, window))
+		return false;
+	window->busy++;
+	bool valid = true;
+	for (int i = 0; valid && i < kPageCount; i++) {
+		if (NotifyPage(host, window->pages[i], PSN_KILLACTIVE) != 0) {
+			RevealPage(host, window, i);
+			valid = false;
+		}
+	}
+	for (int i = 0; valid && i < kPageCount; i++)
+		NotifyPage(host, window->pages[i], PSN_APPLY);
+	window->busy--;
+	return valid;
+}
+
+
+INT_PTR CALLBACK
+PrefsWindowProc(HWND host, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	PrefsWindow* window = (PrefsWindow*)GetWindowLongPtrW(host, DWLP_USER);
+	switch (message) {
+		case WM_INITDIALOG:
+			window = (PrefsWindow*)lParam;
+			SetWindowLongPtrW(host, DWLP_USER, (LONG_PTR)window);
+			InitWindow(host, window);
+			return TRUE;
+		case WM_MEASUREITEM: {
+			MEASUREITEMSTRUCT* measure = (MEASUREITEMSTRUCT*)lParam;
+			if (measure->CtlID != IDC_PREFS_SIDEBAR)
+				break;
+			measure->itemHeight = Scaled(host, 40);
+			return TRUE;
+		}
+		case WM_DRAWITEM: {
+			DRAWITEMSTRUCT* draw = (DRAWITEMSTRUCT*)lParam;
+			if (draw->CtlID != IDC_PREFS_SIDEBAR || window == nullptr)
+				break;
+			DrawSidebarItem(window, draw);
+			return TRUE;
+		}
+		case WM_COMMAND:
+			switch (LOWORD(wParam)) {
+				case IDC_PREFS_SIDEBAR: {
+					if (HIWORD(wParam) != LBN_SELCHANGE)
+						break;
+					int index = (int)SendDlgItemMessageW(host,
+						IDC_PREFS_SIDEBAR, LB_GETCURSEL, 0, 0);
+					if (index < 0 || index == window->section)
+						break;
+					if (LeavePage(host, window))
+						ShowSection(host, window, index);
+					else {
+						SendDlgItemMessageW(host, IDC_PREFS_SIDEBAR,
+							LB_SETCURSEL, window->section, 0);
+					}
+					break;
+				}
+				case IDOK:
+					if (CanClose(host, window) && ApplyPages(host, window))
+						EndDialog(host, IDOK);
+					break;
+				case IDCANCEL:
+					// also the close box and Escape
+					if (CanClose(host, window))
+						EndDialog(host, IDCANCEL);
+					break;
+			}
+			return TRUE;
+		case WM_NOTIFY: {
+			NMHDR* header = (NMHDR*)lParam;
+			if (header->idFrom != IDC_PREFS_TABS)
+				break;
+			if (header->code == TCN_SELCHANGING) {
+				SetWindowLongPtrW(host, DWLP_MSGRESULT,
+					!LeavePage(host, window));
+				return TRUE;
+			}
+			if (header->code == TCN_SELCHANGE) {
+				int tab = TabCtrl_GetCurSel(header->hwndFrom);
+				ShowPage(host, window,
+					kSections[window->section].tabs[tab].page, true);
+				return TRUE;
+			}
+			break;
+		}
+		case WM_DESTROY:
+			for (HICON icon : window->sectionIcons)
+				DestroyIcon(icon);
+			if (window->headerIcon != nullptr)
+				DestroyIcon(window->headerIcon);
+			DeleteObject(window->titleFont);
+			ImageList_Destroy(window->tabImages);
+			return TRUE;
+	}
+	return FALSE;
+}
+
 
 }	// namespace
-
-
-bool
-NeedsRestart(const Settings& old, const Settings& now)
-{
-	if (!SameHardware(old.MachineConfigForRun(), now.MachineConfigForRun())
-		|| old.portForwards != now.portForwards)
-		return true;
-	for (int i = 0; i < 4; i++) {
-		if (old.serial[i] != now.serial[i])
-			return true;
-	}
-	return false;
-}
 
 
 bool
@@ -1039,43 +1349,14 @@ ShowPreferences(HWND owner, Settings& settings, bool running)
 	for (bool& initialized : state.initialized)
 		initialized = false;
 
-	struct PageInfo {
-		int dialog;
-		DLGPROC proc;
-	};
-	static const PageInfo kPages[kPageCount] = {
-		{ IDD_PREFS_MACHINE, MachinePage },
-		{ IDD_PREFS_ROMS, RomsPage },
-		{ IDD_PREFS_DISPLAY, DisplayPage },
-		{ IDD_PREFS_STORAGE, StoragePage },
-		{ IDD_PREFS_SOUND, SoundPage },
-		{ IDD_PREFS_INPUT, InputPage },
-		{ IDD_PREFS_GAMEPORTS, GamePortsPage },
-		{ IDD_PREFS_NETWORK, NetworkPage },
-		{ IDD_PREFS_SERIAL, SerialPage },
-		{ IDD_PREFS_ADVANCED, AdvancedPage }
-	};
-	PROPSHEETPAGEW pages[kPageCount] = {};
-	for (int i = 0; i < kPageCount; i++) {
-		pages[i].dwSize = sizeof(PROPSHEETPAGEW);
-		pages[i].hInstance = GetModuleHandleW(nullptr);
-		pages[i].pszTemplate = MAKEINTRESOURCEW(kPages[i].dialog);
-		pages[i].pfnDlgProc = kPages[i].proc;
-		pages[i].lParam = (LPARAM)&state;
-	}
-	std::wstring title = Widen("BeBox preferences: " + settings.profile);
-	PROPSHEETHEADERW header = {};
-	header.dwSize = sizeof(header);
-	header.dwFlags = PSH_PROPSHEETPAGE | PSH_NOAPPLYNOW | PSH_NOCONTEXTHELP
-		| PSH_USEICONID;
-	header.hwndParent = owner;
-	header.hInstance = GetModuleHandleW(nullptr);
-	header.pszIcon = MAKEINTRESOURCEW(IDI_BEBOX);
-	header.pszCaption = title.c_str();
-	header.nPages = kPageCount;
-	header.ppsp = pages;
-	if (PropertySheetW(&header) <= 0)
+	PrefsWindow window = {};
+	window.state = &state;
+	window.page = -1;
+	if (DialogBoxParamW(GetModuleHandleW(nullptr),
+			MAKEINTRESOURCEW(IDD_PREFS), owner, PrefsWindowProc,
+			(LPARAM)&window) != IDOK) {
 		return false;
+	}
 	settings = state.work;
 	return true;
 }

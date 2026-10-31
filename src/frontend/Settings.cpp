@@ -1,67 +1,88 @@
 /*
- * BeBox emulator for Windows - persistent settings and machine profiles.
+ * BeBox emulator - persistent settings and machine profiles, for the
+ * Windows and Qt front ends.
  * Copyright 2026, the BeBox emulator authors. MIT License.
  */
 #include "Settings.h"
 
-#include "Util.h"
-
-#include <shellapi.h>
+#include "core/storage/BfsReader.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <random>
 
 using bebox::MachineConfig;
 
+namespace fs = std::filesystem;
+
 namespace {
 
 const char* const kDefaultProfile = "Default";
+const char* const kBootRomPath = "/beos/etc/bebox_bootmain.image";
+
+std::string sDirectory;
 
 typedef std::map<std::string, std::string> KeyValues;
+
+
+fs::path
+Path(const std::string& utf8)
+{
+	return fs::u8path(utf8);
+}
+
+
+std::string
+Utf8(const fs::path& path)
+{
+	return path.u8string();
+}
 
 
 bool
 ReadKeyValues(const std::string& path, KeyValues& values)
 {
-	FILE* file = _wfopen(Widen(path).c_str(), L"rb");
-	if (file == nullptr)
+	std::ifstream file(Path(path), std::ios::binary);
+	if (!file)
 		return false;
-	char line[4096];
-	while (fgets(line, sizeof(line), file) != nullptr) {
-		size_t length = strlen(line);
-		while (length > 0 && (line[length - 1] == '\n'
-				|| line[length - 1] == '\r'))
-			line[--length] = '\0';
-		char* equals = strchr(line, '=');
-		if (line[0] == '#' || equals == nullptr)
+	std::string line;
+	while (std::getline(file, line)) {
+		while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
+			line.pop_back();
+		size_t equals = line.find('=');
+		if (line.empty() || line[0] == '#' || equals == std::string::npos)
 			continue;
-		*equals = '\0';
-		values[line] = equals + 1;
+		values[line.substr(0, equals)] = line.substr(equals + 1);
 	}
-	fclose(file);
 	return true;
 }
 
 
+// Written to a new file that then replaces the old one.
 bool
 WriteKeyValues(const std::string& path, const KeyValues& values)
 {
 	std::string temporary = path + ".new";
-	FILE* file = _wfopen(Widen(temporary).c_str(), L"wb");
-	if (file == nullptr)
-		return false;
-	bool ok = true;
-	for (const auto& entry : values) {
-		ok &= fprintf(file, "%s=%s\n", entry.first.c_str(),
-			entry.second.c_str()) > 0;
+	{
+		std::ofstream file(Path(temporary), std::ios::binary
+			| std::ios::trunc);
+		if (!file)
+			return false;
+		for (const auto& entry : values)
+			file << entry.first << '=' << entry.second << '\n';
+		file.flush();
+		if (!file)
+			return false;
 	}
-	ok = fclose(file) == 0 && ok;
-	return ok && MoveFileExW(Widen(temporary).c_str(), Widen(path).c_str(),
-		MOVEFILE_REPLACE_EXISTING);
+	std::error_code error;
+	fs::rename(Path(temporary), Path(path), error);
+	return !error;
 }
 
 
@@ -95,22 +116,47 @@ GetString(const KeyValues& values, const char* key,
 bool
 CopyFileIfExists(const std::string& from, const std::string& to)
 {
-	if (!FileExists(from))
+	std::error_code error;
+	if (!fs::exists(Path(from), error))
 		return true;
-	return CopyFileW(Widen(from).c_str(), Widen(to).c_str(), FALSE) != 0;
+	return fs::copy_file(Path(from), Path(to),
+		fs::copy_options::overwrite_existing, error);
 }
 
 
-bool
-RemoveTree(const std::string& path)
+std::string
+Trimmed(const std::string& text)
 {
-	std::wstring wide = Widen(path);
-	wide.push_back(L'\0');		// double terminated list
-	SHFILEOPSTRUCTW operation = {};
-	operation.wFunc = FO_DELETE;
-	operation.pFrom = wide.c_str();
-	operation.fFlags = FOF_NO_UI;
-	return SHFileOperationW(&operation) == 0;
+	size_t first = text.find_first_not_of(" \t");
+	if (first == std::string::npos)
+		return "";
+	size_t last = text.find_last_not_of(" \t");
+	return text.substr(first, last - first + 1);
+}
+
+
+std::string
+Lowered(std::string text)
+{
+	for (char& c : text)
+		c = (char)tolower((unsigned char)c);
+	return text;
+}
+
+
+std::string
+DefaultDirectory()
+{
+#ifdef _WIN32
+	const char* base = getenv("APPDATA");
+	return std::string(base != nullptr ? base : ".") + "\\BeBox";
+#else
+	const char* config = getenv("XDG_CONFIG_HOME");
+	if (config != nullptr && config[0] != '\0')
+		return std::string(config) + "/BeBox";
+	const char* home = getenv("HOME");
+	return std::string(home != nullptr ? home : ".") + "/.config/BeBox";
+#endif
 }
 
 }	// namespace
@@ -126,25 +172,36 @@ Settings::Settings()
 	hostKey(kHostKeyRightControl),
 	mouseSpeed(100),
 	swapMouseButtons(false),
-	captureOnClick(true),
-	windowFrame{ 0, 0, 0, 0 }
+	captureOnClick(true)
 {
 	_ResetProfile();
+}
+
+
+void
+Settings::SetDirectory(const std::string& directory)
+{
+	sDirectory = directory;
 }
 
 
 std::string
 Settings::Directory()
 {
-	return AppDataDirectory();
+	if (sDirectory.empty())
+		sDirectory = DefaultDirectory();
+	std::error_code error;
+	fs::create_directories(Path(sDirectory), error);
+	return sDirectory;
 }
 
 
 std::string
 Settings::ProfilesDirectory()
 {
-	std::string directory = Directory() + "\\Profiles";
-	CreateDirectories(directory);
+	std::string directory = Utf8(Path(Directory()) / "Profiles");
+	std::error_code error;
+	fs::create_directories(Path(directory), error);
 	return directory;
 }
 
@@ -152,21 +209,21 @@ Settings::ProfilesDirectory()
 std::string
 Settings::ProfileDirectory() const
 {
-	return ProfilesDirectory() + "\\" + profile;
+	return Utf8(Path(ProfilesDirectory()) / Path(profile));
 }
 
 
 std::string
 Settings::FlashPath() const
 {
-	return ProfileDirectory() + "\\flash.bin";
+	return Utf8(Path(ProfileDirectory()) / "flash.bin");
 }
 
 
 std::string
 Settings::NvramPath() const
 {
-	return ProfileDirectory() + "\\nvram.bin";
+	return Utf8(Path(ProfileDirectory()) / "nvram.bin");
 }
 
 
@@ -175,7 +232,7 @@ Settings::_ResetProfile()
 {
 	machine = MachineConfig();
 	machine.threadPerCpu = true;
-	romDirectory = Directory() + "\\ROMs";
+	romDirectory = Utf8(Path(Directory()) / "ROMs");
 	bootRomImage.clear();
 	speedLimit = 100;
 	soundEnabled = true;
@@ -202,7 +259,7 @@ bool
 Settings::Load()
 {
 	KeyValues values;
-	ReadKeyValues(Directory() + "\\settings.ini", values);
+	ReadKeyValues(Utf8(Path(Directory()) / "settings.ini"), values);
 	profile = GetString(values, "profile", kDefaultProfile);
 	if (!CheckProfileName(profile).empty() && !ProfileExists(profile))
 		profile = kDefaultProfile;
@@ -241,7 +298,8 @@ Settings::Save() const
 	values["window_top"] = std::to_string(windowFrame.top);
 	values["window_right"] = std::to_string(windowFrame.right);
 	values["window_bottom"] = std::to_string(windowFrame.bottom);
-	bool ok = WriteKeyValues(Directory() + "\\settings.ini", values);
+	bool ok = WriteKeyValues(Utf8(Path(Directory()) / "settings.ini"),
+		values);
 	return _SaveProfile() && ok;
 }
 
@@ -251,7 +309,8 @@ Settings::_LoadProfile()
 {
 	_ResetProfile();
 	KeyValues values;
-	if (!ReadKeyValues(ProfileDirectory() + "\\settings.ini", values))
+	if (!ReadKeyValues(Utf8(Path(ProfileDirectory()) / "settings.ini"),
+			values))
 		return false;
 	int model = GetInt(values, "model", 66);
 	machine.model = model == 133 ? MachineConfig::kBeBox133
@@ -313,7 +372,8 @@ bool
 Settings::_SaveProfile() const
 {
 	std::string directory = ProfileDirectory();
-	CreateDirectories(directory);
+	std::error_code error;
+	fs::create_directories(Path(directory), error);
 	KeyValues values;
 	values["model"] = machine.model == MachineConfig::kBeBox133 ? "133"
 		: machine.model == MachineConfig::kHobbit ? "25" : "66";
@@ -356,7 +416,7 @@ Settings::_SaveProfile() const
 	values["ethernet_irq"] = std::to_string(ethernetIrq);
 	values["mac_address"] = macAddress;
 	values["port_forwards"] = portForwards;
-	return WriteKeyValues(directory + "\\settings.ini", values);
+	return WriteKeyValues(Utf8(Path(directory) / "settings.ini"), values);
 }
 
 
@@ -365,9 +425,9 @@ Settings::MachineConfigForRun() const
 {
 	MachineConfig config = machine;
 	DropEmptyDevices(config);
-	config.nubRomPath = romDirectory + "\\bootnub.rom";
+	config.nubRomPath = Utf8(Path(romDirectory) / "bootnub.rom");
 	config.mainRomPath = bootRomImage.empty()
-		? romDirectory + "\\bootmain.rom" : bootRomImage;
+		? Utf8(Path(romDirectory) / "bootmain.rom") : bootRomImage;
 	config.flashPath = FlashPath();
 	config.nvramPath = NvramPath();
 	config.ethernet = ethernet;
@@ -380,17 +440,6 @@ Settings::MachineConfigForRun() const
 			config.ethernetMac[i] = (bebox::u8)mac[i];
 	}
 	return config;
-}
-
-
-static std::string
-Trimmed(const std::string& text)
-{
-	size_t first = text.find_first_not_of(" \t");
-	if (first == std::string::npos)
-		return "";
-	size_t last = text.find_last_not_of(" \t");
-	return text.substr(first, last - first + 1);
 }
 
 
@@ -419,23 +468,17 @@ std::vector<std::string>
 Settings::GetProfiles()
 {
 	std::vector<std::string> names;
-	WIN32_FIND_DATAW entry;
-	HANDLE find = FindFirstFileW(Widen(ProfilesDirectory() + "\\*").c_str(),
-		&entry);
-	if (find != INVALID_HANDLE_VALUE) {
-		do {
-			if ((entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
-				&& wcscmp(entry.cFileName, L".") != 0
-				&& wcscmp(entry.cFileName, L"..") != 0)
-				names.push_back(Narrow(entry.cFileName));
-		} while (FindNextFileW(find, &entry));
-		FindClose(find);
+	std::error_code error;
+	for (const fs::directory_entry& entry
+			: fs::directory_iterator(Path(ProfilesDirectory()), error)) {
+		if (entry.is_directory(error))
+			names.push_back(Utf8(entry.path().filename()));
 	}
 	if (names.empty())
 		names.push_back(kDefaultProfile);
 	std::sort(names.begin(), names.end(),
 		[](const std::string& a, const std::string& b) {
-			return _stricmp(a.c_str(), b.c_str()) < 0;
+			return Lowered(a) < Lowered(b);
 		});
 	return names;
 }
@@ -444,7 +487,8 @@ Settings::GetProfiles()
 bool
 Settings::ProfileExists(const std::string& name)
 {
-	return DirectoryExists(ProfilesDirectory() + "\\" + name);
+	std::error_code error;
+	return fs::is_directory(Path(ProfilesDirectory()) / Path(name), error);
 }
 
 
@@ -457,6 +501,7 @@ Settings::CheckProfileName(const std::string& name)
 	if (trimmed != name || name.back() == '.')
 		return "The name cannot start or end with a space or end with a "
 			"period.";
+	// what one of the systems does not take in a folder name
 	if (name.find_first_of("\\/:*?\"<>|") != std::string::npos)
 		return "The name cannot contain \\ / : * ? \" < > or |.";
 	if (ProfileExists(name))
@@ -479,11 +524,15 @@ bool
 Settings::CopyProfile(const std::string& name)
 {
 	std::string from = ProfileDirectory();
-	std::string to = ProfilesDirectory() + "\\" + name;
-	if (!CreateDirectories(to))
+	fs::path to = Path(ProfilesDirectory()) / Path(name);
+	std::error_code error;
+	fs::create_directories(to, error);
+	if (error)
 		return false;
-	bool ok = CopyFileIfExists(from + "\\flash.bin", to + "\\flash.bin")
-		&& CopyFileIfExists(from + "\\nvram.bin", to + "\\nvram.bin");
+	bool ok = CopyFileIfExists(Utf8(Path(from) / "flash.bin"),
+			Utf8(to / "flash.bin"))
+		&& CopyFileIfExists(Utf8(Path(from) / "nvram.bin"),
+			Utf8(to / "nvram.bin"));
 	profile = name;
 	return Save() && ok;
 }
@@ -492,9 +541,10 @@ Settings::CopyProfile(const std::string& name)
 bool
 Settings::RenameProfile(const std::string& name)
 {
-	std::string from = ProfileDirectory();
-	std::string to = ProfilesDirectory() + "\\" + name;
-	if (!MoveFileW(Widen(from).c_str(), Widen(to).c_str()))
+	std::error_code error;
+	fs::rename(Path(ProfileDirectory()),
+		Path(ProfilesDirectory()) / Path(name), error);
+	if (error)
 		return false;
 	profile = name;
 	return Save();
@@ -504,5 +554,104 @@ Settings::RenameProfile(const std::string& name)
 bool
 Settings::DeleteProfile(const std::string& name)
 {
-	return RemoveTree(ProfilesDirectory() + "\\" + name);
+	fs::path folder = Path(ProfilesDirectory()) / Path(name);
+	std::error_code error;
+	// shared folder volumes may have been left write protected
+	for (const fs::directory_entry& entry
+			: fs::recursive_directory_iterator(folder, error)) {
+		fs::permissions(entry.path(), fs::perms::owner_write,
+			fs::perm_options::add, error);
+	}
+	fs::remove_all(folder, error);
+	return !error;
+}
+
+
+// #pragma mark -
+
+
+// The parts of the machine a running one cannot change.
+static bool
+SameHardware(const MachineConfig& a, const MachineConfig& b)
+{
+	if (a.model != b.model || a.ramMB != b.ramMB || a.cpuCount != b.cpuCount
+		|| a.boardRevision != b.boardRevision
+		|| a.ioCardRevision != b.ioCardRevision
+		|| a.videoCard != b.videoCard || a.vramMB != b.vramMB
+		|| a.quantumUs != b.quantumUs || a.cpiPercent != b.cpiPercent
+		|| a.threadPerCpu != b.threadPerCpu
+		|| a.hobbitKernelPath != b.hobbitKernelPath
+		|| a.nubRomPath != b.nubRomPath || a.mainRomPath != b.mainRomPath
+		|| a.ethernet != b.ethernet || a.ethernetPort != b.ethernetPort
+		|| a.ethernetIrq != b.ethernetIrq
+		|| memcmp(a.ethernetMac, b.ethernetMac, 6) != 0)
+		return false;
+	for (int i = 0; i < 2; i++) {
+		if (a.ideImage[i] != b.ideImage[i]
+			|| a.ideReadOnly[i] != b.ideReadOnly[i])
+			return false;
+	}
+	for (int id = 0; id < 7; id++) {
+		const MachineConfig::ScsiTarget& x = a.scsi[id];
+		const MachineConfig::ScsiTarget& y = b.scsi[id];
+		if (x.kind != y.kind)
+			return false;
+		// a disc goes into the running machine
+		if (x.kind != MachineConfig::ScsiTarget::kCdRom
+			&& (x.image != y.image || x.readOnly != y.readOnly))
+			return false;
+	}
+	return true;
+}
+
+
+bool
+NeedsRestart(const Settings& old, const Settings& now)
+{
+	if (!SameHardware(old.MachineConfigForRun(), now.MachineConfigForRun())
+		|| old.portForwards != now.portForwards)
+		return true;
+	for (int i = 0; i < 4; i++) {
+		if (old.serial[i] != now.serial[i])
+			return true;
+	}
+	return false;
+}
+
+
+std::string
+BootRomFromFile(const std::string& path, std::string& error)
+{
+	char header[12] = {};
+	{
+		std::ifstream file(Path(path), std::ios::binary);
+		file.read(header, sizeof(header));
+	}
+	if (memcmp(header, "Joy!peff", 8) == 0
+		|| (memcmp(header, "BOOT", 4) == 0
+			&& memcmp(header + 4, "Joy!peff", 8) == 0))
+		return path;
+
+	std::vector<bebox::u8> data;
+	std::string reason;
+	if (!bebox::BfsReader::ExtractFromImage(path, kBootRomPath, data,
+			reason)) {
+		error = Utf8(Path(path).filename()) + " is neither a boot ROM image "
+			"nor a BeOS CD image with " + kBootRomPath + " (" + reason + ").";
+		return "";
+	}
+	// e.g. "BeOS Release 3 PowerPC.iso" -> "BeOS Release 3 PowerPC.rom"
+	fs::path directory = Path(Settings::Directory()) / "BootROMs";
+	std::error_code ignored;
+	fs::create_directories(directory, ignored);
+	fs::path target = directory / Path(path).stem();
+	target += ".rom";
+	std::ofstream output(target, std::ios::binary | std::ios::trunc);
+	output.write((const char*)data.data(), data.size());
+	output.flush();
+	if (!output) {
+		error = "Cannot write " + Utf8(target) + ".";
+		return "";
+	}
+	return Utf8(target);
 }

@@ -13,8 +13,10 @@
 
 #include "ScreenView.h"
 #include "SerialConsole.h"
-#include "Settings.h"
+#include "frontend/Settings.h"
 #include "WinAudio.h"
+
+#include "frontend/JobQueue.h"
 
 #include "core/Log.h"
 #include "core/host/EmulatorThread.h"
@@ -38,29 +40,6 @@ namespace bebox {
 	class SerialBackend;
 	class SharedFolder;
 }
-
-// Runs jobs one after the other on a thread of its own (the shared
-// folders' copies, which take seconds with a big folder).
-class JobQueue {
-public:
-								JobQueue();
-								~JobQueue();
-
-			void				Add(std::function<void()> job);
-			// Waits until all jobs ran.
-			void				Drain();
-
-private:
-			void				_Run();
-
-			std::mutex			fLock;
-			std::condition_variable fCondition;
-			std::deque<std::function<void()> > fJobs;
-			bool				fBusy;
-			bool				fQuit;
-			std::thread			fThread;
-};
-
 
 class MainWindow {
 public:

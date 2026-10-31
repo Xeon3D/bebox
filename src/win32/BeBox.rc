@@ -9,6 +9,18 @@
 
 IDI_BEBOX ICON "BeBox.ico"
 
+IDI_PAGE_MACHINE ICON "../frontend/icons/machine.ico"
+IDI_PAGE_ROM ICON "../frontend/icons/rom.ico"
+IDI_PAGE_DISPLAY ICON "../frontend/icons/display.ico"
+IDI_PAGE_INPUT ICON "../frontend/icons/input.ico"
+IDI_PAGE_SOUND ICON "../frontend/icons/sound.ico"
+IDI_PAGE_NETWORK ICON "../frontend/icons/network.ico"
+IDI_PAGE_PORTS ICON "../frontend/icons/ports.ico"
+IDI_PAGE_STORAGE ICON "../frontend/icons/storage.ico"
+IDI_PAGE_PERFORMANCE ICON "../frontend/icons/performance.ico"
+IDI_PAGE_KEYBOARD ICON "../frontend/icons/keyboard.ico"
+IDI_PAGE_JOYSTICK ICON "../frontend/icons/joystick.ico"
+
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "BeBox.manifest"
 
 VS_VERSION_INFO VERSIONINFO
@@ -41,6 +53,24 @@ BEGIN
 END
 
 
+// The preferences window: a sidebar of sections, the section's icon and
+// name, and its pages on tabs (or in a frame when it has only one).
+IDD_PREFS DIALOGEX 0, 0, 476, 297
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "BeBox preferences"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LISTBOX IDC_PREFS_SIDEBAR, 7, 7, 110, 257, LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+	CONTROL "", IDC_PREFS_ICON, "Static", SS_ICON | SS_REALSIZEIMAGE, 124, 7, 16, 16
+	LTEXT "", IDC_PREFS_TITLE, 146, 9, 200, 12, SS_NOPREFIX
+	CONTROL "", IDC_PREFS_TABS, "SysTabControl32", WS_TABSTOP | WS_CLIPSIBLINGS, 124, 28, 345, 236
+	CONTROL "", IDC_PREFS_FRAME, "Static", SS_ETCHEDFRAME | WS_CLIPSIBLINGS, 124, 28, 345, 236
+	CONTROL "", -1, "Static", SS_ETCHEDHORZ, 7, 270, 462, 1
+	DEFPUSHBUTTON "OK", IDOK, 365, 277, 50, 14
+	PUSHBUTTON "Cancel", IDCANCEL, 419, 277, 50, 14
+END
+
+// The pages, without their captions in the preferences window.
 #define PAGE_STYLE DS_SHELLFONT | WS_CHILD | WS_CAPTION | DS_CONTROL
 
 IDD_PREFS_MACHINE DIALOGEX 0, 0, 340, 220

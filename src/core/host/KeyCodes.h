@@ -16,6 +16,10 @@ namespace bebox {
 // Returns 0 for keys without an AT equivalent.
 u32 HaikuKeyToSet2(u32 haikuKey);
 
+// AT scan code set 1 (what Windows reports, and Linux's evdev codes for
+// most keys) to set 2; 'extended': the E0 prefix. 0 for keys without one.
+u32 Set1ToSet2(u32 scanCode, bool extended);
+
 // Key names for scripts ("Enter", "A", "F1", "Up", ...); 0 if unknown.
 u32 KeyNameToSet2(const char* name);
 
