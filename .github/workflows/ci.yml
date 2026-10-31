@@ -1,6 +1,6 @@
-# Builds BeBox and runs the core's tests on Windows, Linux and macOS: the
-# applications (Win32, Qt), bebox-headless, bebox-img and the device,
-# Hobbit, QCOW2 and BFS tests.
+# Builds BeBox and runs the core's tests on Windows, Linux, macOS and
+# Haiku: the applications (Win32, Qt, native Haiku), bebox-headless,
+# bebox-img and the device, Hobbit, QCOW2 and BFS tests.
 
 name: CI
 
@@ -89,3 +89,38 @@ jobs:
           build/qcow2-tests ci-work/qcow2
           build/bfs-tests ci-work/bfs
           test -d build/src/qt/BeBox.app
+
+  haiku:
+    name: Haiku (R1/beta6 x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Start Haiku
+        uses: cross-platform-actions/action@v1.7.0
+        with:
+          operating_system: haiku
+          architecture: x86-64
+          version: 'r1beta6'
+          shell: bash
+      - name: Install packages
+        shell: cpa.sh {0}
+        run: >-
+          pkgman install -y haiku_devel zlib_devel libslirp_devel cmake ninja
+          qt6_base_devel qt6_multimedia_devel libsdl2_devel
+      - name: Build the native application
+        shell: cpa.sh {0}
+        run: make -j4
+      - name: Build the Qt application, the tools and the tests
+        shell: cpa.sh {0}
+        run: |
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+      - name: Test
+        shell: cpa.sh {0}
+        run: |
+          mkdir -p ci-work/qcow2 ci-work/bfs
+          build/device-tests
+          build/hobbit-tests
+          build/qcow2-tests ci-work/qcow2
+          build/bfs-tests ci-work/bfs
+          test -x build/src/qt/BeBox
