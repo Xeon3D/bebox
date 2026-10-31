@@ -1,23 +1,29 @@
 /*
- * BeBox emulator - portable serial port backends (POSIX).
+ * BeBox emulator - portable serial port backends (POSIX and Windows).
  * Copyright 2026, the BeBox emulator authors. MIT License.
  */
 #include "SerialBackends.h"
 
+#include "Platform.h"
 #include "../Log.h"
 
-#include <arpa/inet.h>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <termios.h>
-#include <unistd.h>
+
+#ifdef _WIN32
+#	include <winsock2.h>
+#	include <ws2tcpip.h>
+#	include <windows.h>
+#else
+#	include <arpa/inet.h>
+#	include <netdb.h>
+#	include <netinet/in.h>
+#	include <netinet/tcp.h>
+#	include <sys/ioctl.h>
+#	include <sys/socket.h>
+#	include <termios.h>
+#endif
 
 #ifndef MSG_NOSIGNAL
 #	define MSG_NOSIGNAL 0
@@ -27,6 +33,68 @@ namespace bebox {
 
 namespace {
 
+// Sockets are ints here as in libslirp: on Windows a SOCKET is a small
+// kernel handle, and INVALID_SOCKET converts to -1.
+
+#ifdef _WIN32
+
+bool
+StartSockets()
+{
+	static bool started = false;
+	if (!started) {
+		WSADATA data;
+		started = WSAStartup(MAKEWORD(2, 2), &data) == 0;
+	}
+	return started;
+}
+
+
+void
+CloseSocket(int fd)
+{
+	closesocket((SOCKET)fd);
+}
+
+
+void
+SetNonBlocking(int fd)
+{
+	u_long one = 1;
+	ioctlsocket((SOCKET)fd, FIONBIO, &one);
+}
+
+
+bool
+SocketWouldBlock()
+{
+	int error = WSAGetLastError();
+	return error == WSAEWOULDBLOCK || error == WSAEINTR;
+}
+
+
+std::string
+SocketError()
+{
+	return "error " + std::to_string(WSAGetLastError());
+}
+
+#else	// !_WIN32
+
+bool
+StartSockets()
+{
+	return true;
+}
+
+
+void
+CloseSocket(int fd)
+{
+	close(fd);
+}
+
+
 void
 SetNonBlocking(int fd)
 {
@@ -34,6 +102,22 @@ SetNonBlocking(int fd)
 	if (flags >= 0)
 		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
+
+
+bool
+SocketWouldBlock()
+{
+	return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR;
+}
+
+
+std::string
+SocketError()
+{
+	return strerror(errno);
+}
+
+#endif	// !_WIN32
 
 
 bool
@@ -98,7 +182,7 @@ TcpSerial::~TcpSerial()
 {
 	_Disconnect();
 	if (fListener >= 0)
-		close(fListener);
+		CloseSocket(fListener);
 }
 
 
@@ -106,19 +190,19 @@ std::unique_ptr<TcpSerial>
 TcpSerial::Listen(const std::string& host, int port, std::string& error)
 {
 	sockaddr_in address;
-	if (!ResolveAddress(host, port, address, error))
+	if (!StartSockets() || !ResolveAddress(host, port, address, error))
 		return nullptr;
-	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	int fd = (int)socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0) {
-		error = std::string("socket: ") + strerror(errno);
+		error = "socket: " + SocketError();
 		return nullptr;
 	}
 	int one = 1;
-	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&one, sizeof(one));
 	if (bind(fd, (sockaddr*)&address, sizeof(address)) != 0
 		|| listen(fd, 1) != 0) {
-		error = "TCP port " + std::to_string(port) + ": " + strerror(errno);
-		close(fd);
+		error = "TCP port " + std::to_string(port) + ": " + SocketError();
+		CloseSocket(fd);
 		return nullptr;
 	}
 	SetNonBlocking(fd);
@@ -133,7 +217,7 @@ std::unique_ptr<TcpSerial>
 TcpSerial::Connect(const std::string& host, int port, std::string& error)
 {
 	sockaddr_in address;
-	if (!ResolveAddress(host, port, address, error))
+	if (!StartSockets() || !ResolveAddress(host, port, address, error))
 		return nullptr;
 	std::unique_ptr<TcpSerial> serial(new TcpSerial);
 	serial->fConnectMode = true;
@@ -148,7 +232,7 @@ void
 TcpSerial::_Disconnect()
 {
 	if (fClient >= 0) {
-		close(fClient);
+		CloseSocket(fClient);
 		fClient = -1;
 	}
 	fInLength = fInPosition = 0;
@@ -166,7 +250,7 @@ TcpSerial::_Service()
 			return;
 		}
 		if (fListener >= 0) {
-			int client = accept(fListener, nullptr, nullptr);
+			int client = (int)accept(fListener, nullptr, nullptr);
 			if (client < 0)
 				return;
 			fClient = client;
@@ -176,11 +260,11 @@ TcpSerial::_Service()
 			fRetryCountdown = 500;		// about a second of polls
 			if (!ResolveAddress(fHost, fPort, address, error))
 				return;
-			int fd = socket(AF_INET, SOCK_STREAM, 0);
+			int fd = (int)socket(AF_INET, SOCK_STREAM, 0);
 			if (fd < 0)
 				return;
 			if (connect(fd, (sockaddr*)&address, sizeof(address)) != 0) {
-				close(fd);
+				CloseSocket(fd);
 				return;
 			}
 			fClient = fd;
@@ -188,18 +272,18 @@ TcpSerial::_Service()
 			return;
 		SetNonBlocking(fClient);
 		int one = 1;
-		setsockopt(fClient, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+		setsockopt(fClient, IPPROTO_TCP, TCP_NODELAY, (const char*)&one,
+			sizeof(one));
 		BB_LOG(kLogSerial, kLogInfo, "serial: TCP client connected (port %d)",
 			fPort);
 	}
 	_Flush();
 	if (fInPosition >= fInLength && fClient >= 0) {
-		ssize_t count = recv(fClient, fIn, sizeof(fIn), 0);
+		ssize_t count = recv(fClient, (char*)fIn, sizeof(fIn), 0);
 		if (count > 0) {
 			fInLength = (int)count;
 			fInPosition = 0;
-		} else if (count == 0 || (errno != EAGAIN && errno != EWOULDBLOCK
-				&& errno != EINTR)) {
+		} else if (count == 0 || !SocketWouldBlock()) {
 			BB_LOG(kLogSerial, kLogInfo, "serial: TCP client disconnected");
 			_Disconnect();
 		}
@@ -217,10 +301,10 @@ TcpSerial::_Flush()
 			buffer[length] = fOut[length];
 			length++;
 		}
-		ssize_t sent = send(fClient, buffer, length, MSG_NOSIGNAL);
+		ssize_t sent = send(fClient, (const char*)buffer, length,
+			MSG_NOSIGNAL);
 		if (sent <= 0) {
-			if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK
-				&& errno != EINTR)
+			if (sent < 0 && !SocketWouldBlock())
 				_Disconnect();
 			return;
 		}
@@ -261,6 +345,8 @@ TcpSerial::ModemStatus()
 
 // #pragma mark - HostSerial
 
+
+#ifndef _WIN32
 
 HostSerial::~HostSerial()
 {
@@ -387,6 +473,125 @@ HostSerial::SetBreak(bool active)
 	ioctl(fFd, active ? TIOCSBRK : TIOCCBRK, 0);
 #endif
 }
+
+#else	// _WIN32
+
+// "COM1" ... ; the \.\ prefix also opens COM10 and above.
+
+HostSerial::~HostSerial()
+{
+	if (fHandle != nullptr)
+		CloseHandle((HANDLE)fHandle);
+}
+
+
+std::unique_ptr<HostSerial>
+HostSerial::Open(const std::string& device, std::string& error)
+{
+	std::string path = device.compare(0, 4, "\\.\\") == 0 ? device
+		: "\\.\\" + device;
+	HANDLE handle = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
+		0, nullptr, OPEN_EXISTING, 0, nullptr);
+	if (handle == INVALID_HANDLE_VALUE) {
+		error = device + ": cannot open (error "
+			+ std::to_string(GetLastError()) + ")";
+		return nullptr;
+	}
+	// reads return at once with what has arrived; writes do not time out
+	COMMTIMEOUTS timeouts = {};
+	timeouts.ReadIntervalTimeout = MAXDWORD;
+	SetCommTimeouts(handle, &timeouts);
+	DCB dcb = {};
+	dcb.DCBlength = sizeof(dcb);
+	if (GetCommState(handle, &dcb)) {
+		dcb.fBinary = TRUE;
+		dcb.fOutxCtsFlow = dcb.fOutxDsrFlow = FALSE;
+		dcb.fDsrSensitivity = FALSE;
+		dcb.fOutX = dcb.fInX = FALSE;
+		dcb.fErrorChar = dcb.fNull = FALSE;
+		dcb.fAbortOnError = FALSE;
+		SetCommState(handle, &dcb);
+	}
+	std::unique_ptr<HostSerial> serial(new HostSerial);
+	serial->fHandle = handle;
+	return serial;
+}
+
+
+void
+HostSerial::Transmit(u8 byte)
+{
+	DWORD written;
+	WriteFile((HANDLE)fHandle, &byte, 1, &written, nullptr);
+}
+
+
+int
+HostSerial::Receive()
+{
+	if (fInPosition >= fInLength) {
+		DWORD count = 0;
+		if (!ReadFile((HANDLE)fHandle, fIn, sizeof(fIn), &count, nullptr)
+			|| count == 0)
+			return -1;
+		fInLength = (int)count;
+		fInPosition = 0;
+	}
+	return fIn[fInPosition++];
+}
+
+
+void
+HostSerial::SetLineConfig(const SerialLineConfig& config)
+{
+	DCB dcb = {};
+	dcb.DCBlength = sizeof(dcb);
+	if (!GetCommState((HANDLE)fHandle, &dcb))
+		return;
+	dcb.BaudRate = config.baud > 0 ? config.baud : 9600;
+	dcb.ByteSize = config.dataBits >= 5 && config.dataBits <= 8
+		? config.dataBits : 8;
+	dcb.fParity = config.parity == 'E' || config.parity == 'O';
+	dcb.Parity = config.parity == 'E' ? EVENPARITY
+		: config.parity == 'O' ? ODDPARITY : NOPARITY;
+	dcb.StopBits = config.stopBits == 2 ? TWOSTOPBITS : ONESTOPBIT;
+	SetCommState((HANDLE)fHandle, &dcb);
+}
+
+
+void
+HostSerial::SetModemControl(bool dtr, bool rts)
+{
+	EscapeCommFunction((HANDLE)fHandle, dtr ? SETDTR : CLRDTR);
+	EscapeCommFunction((HANDLE)fHandle, rts ? SETRTS : CLRRTS);
+}
+
+
+SerialModemStatus
+HostSerial::ModemStatus()
+{
+	SerialModemStatus status;
+	DWORD lines = 0;
+	if (GetCommModemStatus((HANDLE)fHandle, &lines)) {
+		status.cts = (lines & MS_CTS_ON) != 0;
+		status.dsr = (lines & MS_DSR_ON) != 0;
+		status.dcd = (lines & MS_RLSD_ON) != 0;
+		status.ri = (lines & MS_RING_ON) != 0;
+	}
+	return status;
+}
+
+
+void
+HostSerial::SetBreak(bool active)
+{
+	if (active)
+		SetCommBreak((HANDLE)fHandle);
+	else
+		ClearCommBreak((HANDLE)fHandle);
+}
+
+#endif	// _WIN32
 
 
 // #pragma mark -

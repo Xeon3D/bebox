@@ -27,16 +27,21 @@ src/core/      portable C++17, no Haiku headers: the machine
   host/        interfaces to the front end: VideoSink, AudioSink,
                SerialBackend (+ file, TCP, host port backends),
                NetworkBackend (libslirp), KeyCodes,
-               EmulatorThread (real time pacing on its own thread)
+               EmulatorThread (real time pacing on its own thread),
+               Platform (the POSIX file calls, also on Windows)
 src/haiku/     the Haiku application
-src/headless/  bebox-headless, the command line runner (Linux and Haiku)
+src/win32/     the Windows application (Win32: MainWindow, ScreenView,
+               PrefsDialog, WinAudio through waveOut, KeyMap from scan
+               code set 1)
+src/headless/  bebox-headless, the command line runner (Linux, Haiku and
+               Windows)
 tools/         bebox-img, extract-rom-images.sh, ppc-testgen.py, make_icon.py,
                merge_hvif.py (Haiku icon + overlay icon in one HVIF)
 tests/         Linux unit and boot tests, the Haiku end-to-end test
 ```
 
-The core builds on Linux, where it is tested under ASan and UBSan, and on
-Haiku; the app links it in.
+The core builds on Linux, where it is tested under ASan and UBSan, on
+Haiku and on Windows (MinGW-w64, CMakeLists.txt); the apps link it in.
 
 ## Time and scheduling
 

@@ -8,11 +8,10 @@
 #include "DiskImage.h"
 #include "Qcow2Image.h"
 
+#include "../host/Platform.h"
+
 #include <dirent.h>
-#include <fcntl.h>
-#include <sys/stat.h>
 #include <sys/time.h>
-#include <unistd.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -47,7 +46,7 @@ HostIsLittleEndian()
 s64
 ModifiedNs(const struct stat& st)
 {
-	return (s64)st.st_mtim.tv_sec * 1000000000 + st.st_mtim.tv_nsec;
+	return (s64)StatModifiedNs(st);
 }
 
 
@@ -246,8 +245,8 @@ SharedFolder::_ScanFolder(const std::string& relative, BfsWriter::Node& node,
 		BfsWriter::Node child;
 		child.name = name;
 		child.permissions = st.st_mode & 07777;
-		child.modified = st.st_mtim.tv_sec;
-		child.created = st.st_mtim.tv_sec;
+		child.modified = st.st_mtime;
+		child.created = st.st_mtime;
 		Record record;
 		record.hostModified = ModifiedNs(st);
 		if (S_ISDIR(st.st_mode)) {
@@ -335,7 +334,7 @@ SharedFolder::_Build(std::string& error)
 	root.directory = true;
 	root.name = Leaf(fFolder);
 	root.permissions = st.st_mode & 07777;
-	root.modified = root.created = st.st_mtim.tv_sec;
+	root.modified = root.created = st.st_mtime;
 	root.attributes = _HostAttributes(fFolder);
 	u64 bytes = 0;
 	if (!_ScanFolder("", root, bytes, error))
@@ -395,7 +394,7 @@ SharedFolder::_SaveSnapshot()
 	}
 	bool ok = !ferror(file);
 	ok = fclose(file) == 0 && ok;
-	if (!ok || rename(temporary.c_str(), path.c_str()) != 0) {
+	if (!ok || RenameReplacing(temporary.c_str(), path.c_str()) != 0) {
 		unlink(temporary.c_str());
 		return false;
 	}
@@ -627,7 +626,7 @@ SharedFolder::_Sync(DiskImage& volume, std::string& report,
 			if (close(fd) != 0 && writeError == 0)
 				writeError = errno;
 			if (readOk && writeError == 0
-				&& rename(temporary.c_str(), target.c_str()) != 0)
+				&& RenameReplacing(temporary.c_str(), target.c_str()) != 0)
 				writeError = errno;
 			if (!readOk || writeError != 0) {
 				unlink(temporary.c_str());

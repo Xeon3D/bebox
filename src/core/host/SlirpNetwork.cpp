@@ -75,11 +75,23 @@ CreateUserNetwork(const UserNetworkConfig& config, std::string& error)
 #else	// HAVE_SLIRP
 
 // The classic poll interface: libslirp 4.7 (Haiku) has no socket variant.
+// Windows uses the socket one (4.8 and later), as its sockets are handles,
+// and WSAPoll() for poll().
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#ifdef _WIN32
+#	include <winsock2.h>
+#	include <ws2tcpip.h>
+#endif
 #include <slirp/libslirp.h>
 
-#include <arpa/inet.h>
-#include <poll.h>
+#ifdef _WIN32
+#	define poll WSAPoll
+	typedef slirp_os_socket PollSocket;
+#else
+#	include <arpa/inet.h>
+#	include <poll.h>
+	typedef int PollSocket;
+#endif
 
 #include <chrono>
 #include <deque>
@@ -127,7 +139,8 @@ private:
 	static	void				_RegisterPollFd(int fd, void* opaque) {}
 	static	void				_UnregisterPollFd(int fd, void* opaque) {}
 	static	void				_Notify(void* opaque) {}
-	static	int					_AddPoll(int fd, int events, void* opaque);
+	static	int					_AddPoll(PollSocket fd, int events,
+									void* opaque);
 	static	int					_GetREvents(int index, void* opaque);
 
 			Slirp*				fSlirp;
@@ -207,7 +220,11 @@ SlirpNetwork::Poll()
 {
 	uint32_t timeout = 0;
 	fPollFds.clear();
+#ifdef _WIN32
+	slirp_pollfds_fill_socket(fSlirp, &timeout, _AddPoll, this);
+#else
 	slirp_pollfds_fill(fSlirp, &timeout, _AddPoll, this);
+#endif
 	int result = fPollFds.empty() ? 0
 		: poll(fPollFds.data(), fPollFds.size(), 0);
 	slirp_pollfds_poll(fSlirp, result < 0, _GetREvents, this);
@@ -286,7 +303,7 @@ SlirpNetwork::_TimerMod(void* timer, int64_t expireTime, void* opaque)
 
 
 int
-SlirpNetwork::_AddPoll(int fd, int events, void* opaque)
+SlirpNetwork::_AddPoll(PollSocket fd, int events, void* opaque)
 {
 	SlirpNetwork* network = (SlirpNetwork*)opaque;
 	pollfd entry;
@@ -297,8 +314,11 @@ SlirpNetwork::_AddPoll(int fd, int events, void* opaque)
 		entry.events |= POLLIN;
 	if ((events & SLIRP_POLL_OUT) != 0)
 		entry.events |= POLLOUT;
+#ifndef _WIN32
+	// WSAPoll() fails on POLLPRI; slirp's urgent data is rare enough.
 	if ((events & SLIRP_POLL_PRI) != 0)
 		entry.events |= POLLPRI;
+#endif
 	network->fPollFds.push_back(entry);
 	return (int)network->fPollFds.size() - 1;
 }

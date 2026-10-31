@@ -15,12 +15,12 @@
 
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "core/host/Platform.h"
 
 using namespace bebox;
 
@@ -168,13 +168,33 @@ TextNode(const std::string& name, const std::string& text)
 
 
 // A folder shared, changed "by BeOS" (the volume rewritten), synced back.
+// rm -rf, write protected folders too.
+void
+RemoveAll(const std::vector<std::string>& paths)
+{
+	namespace fs = std::filesystem;
+	for (const std::string& path : paths) {
+		std::error_code error;
+		if (fs::is_directory(path, error)) {
+			for (const auto& entry : fs::recursive_directory_iterator(path,
+					error)) {
+				fs::permissions(entry.path(), fs::perms::owner_write,
+					fs::perm_options::add, error);
+			}
+			fs::permissions(path, fs::perms::owner_write,
+				fs::perm_options::add, error);
+		}
+		fs::remove_all(path, error);
+	}
+}
+
+
 void
 TestSharedFolder(const std::string& work)
 {
 	std::string folder = work + "/shared";
 	std::string image = work + "/shared.qcow2";
-	system(("rm -rf '" + folder + "' '" + image + "' '" + image
-		+ ".snapshot'").c_str());
+	RemoveAll({ folder, image, image + ".snapshot" });
 	mkdir(folder.c_str(), 0755);
 	mkdir((folder + "/sub").c_str(), 0755);
 	WriteText(folder + "/a.txt", "alpha");
@@ -315,8 +335,7 @@ TestSharedFolderFailures(const std::string& work)
 	std::string folder = work + "/failing";
 	std::string image = work + "/failing.qcow2";
 	auto fresh = [&](SharedFolder& share) {
-		system(("chmod -R u+w '" + folder + "' 2>/dev/null; rm -rf '"
-			+ folder + "' '" + image + "' '" + image + ".snapshot'").c_str());
+		RemoveAll({ folder, image, image + ".snapshot" });
 		mkdir(folder.c_str(), 0755);
 		mkdir((folder + "/sub").c_str(), 0755);
 		WriteText(folder + "/a.txt", "alpha");

@@ -5,6 +5,7 @@
 #include "Rtc146818.h"
 
 #include "../Log.h"
+#include "../host/Platform.h"
 
 namespace bebox {
 

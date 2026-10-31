@@ -14,9 +14,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "../host/Platform.h"
 #include <zlib.h>
 
 namespace bebox {

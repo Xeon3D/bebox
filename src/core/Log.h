@@ -56,7 +56,7 @@ public:
 	static bool Enabled(LogCategory category, LogLevel level)
 		{ return level <= sLevels[category]; }
 	static void Write(LogCategory category, LogLevel level,
-		const char* format, ...) __attribute__((format(printf, 3, 4)));
+		const char* format, ...) BB_PRINTF_FORMAT(3, 4);
 	static const char* CategoryName(LogCategory category);
 	static bool CategoryFromName(const char* name, LogCategory& category);
 	// "CATEGORY=LEVEL", "all=LEVEL" or "CATEGORY" (debug): sets levels
