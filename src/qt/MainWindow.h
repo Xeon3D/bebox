@@ -110,6 +110,11 @@ private:
 			void				_About();
 
 			bool				_HandleKey(QKeyEvent* event);
+			bool				_HandleKeyCode(bebox::u32 code, bool down,
+									bool repeat, bool fullScreenKey);
+#ifdef Q_OS_HAIKU
+			bool				_HandleHaikuKeys(QKeyEvent* event);
+#endif
 			void				_SendKey(bebox::u32 code, bool down);
 			void				_ReleaseAllKeys();
 			bebox::u32			_HostKeyCode() const;
@@ -161,6 +166,12 @@ private:
 			std::set<bebox::u32> fKeysDown;
 			bool				fHostKeyDown;
 			bool				fHostComboUsed;
+#ifdef Q_OS_HAIKU
+			// Haiku's key states (key_info) as last seen; the key last
+			// pressed, for its auto-repeat
+			unsigned char		fHaikuKeys[16];
+			bebox::u32			fHaikuLastKey;
+#endif
 
 			QString				fProblem;
 			qint64				fProblemTime;
