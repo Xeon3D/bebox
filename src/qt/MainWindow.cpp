@@ -25,6 +25,8 @@
 
 #ifdef Q_OS_HAIKU
 #	include "haiku/HaikuAttributes.h"
+
+#	include <InterfaceDefs.h>
 #endif
 #ifdef Q_OS_WIN
 #	include <windows.h>
@@ -53,6 +55,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 using bebox::MachineConfig;
 
@@ -134,6 +137,10 @@ MainWindow::MainWindow(Settings& settings)
 	fWasMaximized(false),
 	fHostKeyDown(false),
 	fHostComboUsed(false),
+#ifdef Q_OS_HAIKU
+	fHaikuKeys(),
+	fHaikuLastKey(0),
+#endif
 	fProblemTime(0)
 {
 	setWindowTitle("BeBox");
@@ -1416,6 +1423,11 @@ MainWindow::_ReleaseAllKeys()
 	for (bebox::u32 code : keys)
 		_SendKey(code, false);
 	fHostKeyDown = false;
+#ifdef Q_OS_HAIKU
+	// keys still down count as pressed again when the window is back
+	memset(fHaikuKeys, 0, sizeof(fHaikuKeys));
+	fHaikuLastKey = 0;
+#endif
 }
 
 
@@ -1441,7 +1453,11 @@ MainWindow::eventFilter(QObject* watched, QEvent* event)
 		}
 		return false;
 	}
+#ifdef Q_OS_HAIKU
+	return _HandleHaikuKeys(key);
+#else
 	return _HandleKey(key);
+#endif
 }
 
 
@@ -1452,8 +1468,17 @@ MainWindow::_HandleKey(QKeyEvent* event)
 	// X11 sends a release before each repeated press: only the press counts
 	if (!down && event->isAutoRepeat())
 		return fPowered;
-	bebox::u32 code = KeyEventToSet2(event);
+	return _HandleKeyCode(KeyEventToSet2(event), down,
+		event->isAutoRepeat(), event->key() == Qt::Key_F);
+}
 
+
+// A key (set 2) going down or up: the host key, the host key with F
+// (fullScreenKey), or one for the BeBox.
+bool
+MainWindow::_HandleKeyCode(bebox::u32 code, bool down, bool repeat,
+	bool fullScreenKey)
+{
 	// the host key: releases or captures the mouse when it goes up alone
 	if (code == _HostKeyCode()) {
 		if (down) {
@@ -1469,9 +1494,9 @@ MainWindow::_HandleKey(QKeyEvent* event)
 		return true;
 	}
 	// with F: full screen, also while the machine is off
-	if (fHostKeyDown && event->key() == Qt::Key_F) {
+	if (fHostKeyDown && fullScreenKey) {
 		fHostComboUsed = true;
-		if (down && !event->isAutoRepeat())
+		if (down && !repeat)
 			_SetFullScreen(!fFullScreen);
 		return true;
 	}
@@ -1485,6 +1510,44 @@ MainWindow::_HandleKey(QKeyEvent* event)
 		_SendKey(code, false);
 	return true;
 }
+
+
+#ifdef Q_OS_HAIKU
+// Haiku: Qt's key events carry no native key code (and say Control for
+// both Ctrl keys), so the keys come from Haiku's own key states: each
+// event sends what changed since the last one.
+bool
+MainWindow::_HandleHaikuKeys(QKeyEvent* event)
+{
+	key_info info;
+	if (get_key_info(&info) != B_OK)
+		return _HandleKey(event);
+
+	bool handled = false;
+	bool changed = false;
+	for (int key = 1; key < 128; key++) {
+		unsigned char bit = 1 << (7 - (key & 7));
+		bool was = (fHaikuKeys[key >> 3] & bit) != 0;
+		bool is = (info.key_states[key >> 3] & bit) != 0;
+		if (was == is)
+			continue;
+		changed = true;
+		bebox::u32 code = bebox::HaikuKeyToSet2(key);
+		if (is)
+			fHaikuLastKey = code;
+		handled |= _HandleKeyCode(code, is, false, code == 0x2b);	// F
+	}
+	memcpy(fHaikuKeys, info.key_states, sizeof(fHaikuKeys));
+
+	// auto-repeat: the key last pressed, again
+	if (!changed && event->type() == QEvent::KeyPress
+		&& event->isAutoRepeat() && fHaikuLastKey != 0) {
+		handled = _HandleKeyCode(fHaikuLastKey, true, true,
+			fHaikuLastKey == 0x2b);
+	}
+	return handled || fPowered;
+}
+#endif
 
 
 void
