@@ -99,8 +99,8 @@ Sio82378::IoRead8(u32 port)
 		{
 			// Bit 4 toggles with every refresh request (counter 1),
 			// bit 5 is counter 2's output.
-			u64 pitTicks = (u64)(((unsigned __int128)fScheduler.Now()
-				* Pit8254::kClock) / fTicksPerSecond);
+			u64 pitTicks = MulDiv(fScheduler.Now(), Pit8254::kClock,
+				fTicksPerSecond);
 			u8 value = fPort61 & 0x0f;
 			if (((pitTicks / 18) & 1) != 0)
 				value |= 0x10;

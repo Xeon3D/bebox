@@ -86,16 +86,14 @@ Pit8254::SetOutputCallback(int counter, OutputCallback callback)
 u64
 Pit8254::_PitTicks() const
 {
-	return (u64)(((unsigned __int128)fScheduler.Now() * kClock)
-		/ fTicksPerSecond);
+	return MulDiv(fScheduler.Now(), kClock, fTicksPerSecond);
 }
 
 
 u64
 Pit8254::_MachineTime(u64 pitTick) const
 {
-	unsigned __int128 product = (unsigned __int128)pitTick * fTicksPerSecond;
-	return (u64)((product + kClock - 1) / kClock);
+	return MulDiv(pitTick, fTicksPerSecond, kClock, kClock - 1);
 }
 
 
