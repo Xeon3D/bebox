@@ -80,7 +80,8 @@ jobs:
           cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
       - name: Build
-        run: cmake --build build
+        # all the errors in one run, not only the first
+        run: cmake --build build -- -k 0
       - name: Test
         run: |
           mkdir -p ci-work/qcow2 ci-work/bfs
