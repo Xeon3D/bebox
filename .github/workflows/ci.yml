@@ -1,6 +1,6 @@
-# Builds BeBox and runs the core's tests on Windows and Linux: the Win32
-# application, bebox-headless, bebox-img and the device, Hobbit, QCOW2 and
-# BFS tests.
+# Builds BeBox and runs the core's tests on Windows, Linux and macOS: the
+# applications (Win32, Qt), bebox-headless, bebox-img and the device,
+# Hobbit, QCOW2 and BFS tests.
 
 name: CI
 
@@ -29,6 +29,7 @@ jobs:
           update: false
           pacboy: >-
             gcc:p cmake:p ninja:p pkgconf:p zlib:p libslirp:p
+            qt6-base:p qt6-multimedia:p SDL2:p
       - name: Configure
         run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -41,6 +42,7 @@ jobs:
           build/qcow2-tests ci-work/qcow2
           build/bfs-tests ci-work/bfs
           test -f build/src/win32/BeBox.exe
+          test -f build/src/qt/BeBoxQt.exe
 
   linux:
     name: Linux (Ubuntu 26.04)
@@ -51,7 +53,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build g++ pkg-config \
-            zlib1g-dev libslirp-dev
+            zlib1g-dev libslirp-dev \
+            qt6-base-dev qt6-multimedia-dev libsdl2-dev
       - name: Configure
         run: cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -63,3 +66,27 @@ jobs:
           build/hobbit-tests
           build/qcow2-tests ci-work/qcow2
           build/bfs-tests ci-work/bfs
+          test -x build/src/qt/BeBox
+
+  macos:
+    name: macOS (Homebrew)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install packages
+        run: brew install ninja pkg-config libslirp qt sdl2
+      - name: Configure
+        run: >-
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+      - name: Build
+        # all the errors in one run, not only the first
+        run: cmake --build build -- -k 0
+      - name: Test
+        run: |
+          mkdir -p ci-work/qcow2 ci-work/bfs
+          build/device-tests
+          build/hobbit-tests
+          build/qcow2-tests ci-work/qcow2
+          build/bfs-tests ci-work/bfs
+          test -d build/src/qt/BeBox.app

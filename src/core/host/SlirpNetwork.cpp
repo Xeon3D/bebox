@@ -82,7 +82,14 @@ CreateUserNetwork(const UserNetworkConfig& config, std::string& error)
 #	include <winsock2.h>
 #	include <ws2tcpip.h>
 #endif
-#include <slirp/libslirp.h>
+// pkg-config gives libslirp's own folder (include/slirp) as the include
+// path; it is found as slirp/... only where the system folder is searched
+// too (not Homebrew's on macOS)
+#if __has_include(<slirp/libslirp.h>)
+#	include <slirp/libslirp.h>
+#else
+#	include <libslirp.h>
+#endif
 
 #ifdef _WIN32
 #	define poll WSAPoll
