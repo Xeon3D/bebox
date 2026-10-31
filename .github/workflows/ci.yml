@@ -1,6 +1,6 @@
-# Builds BeBox on Windows, Linux, macOS and Haiku: the applications
-# (Win32, Qt, native Haiku), bebox-headless and bebox-img; runs the
-# device, Hobbit, QCOW2 and BFS tests everywhere but Haiku.
+# Builds BeBox and runs the core's tests on Windows, Linux, macOS and
+# Haiku: the applications (Win32, Qt, native Haiku), bebox-headless,
+# bebox-img and the device, Hobbit, QCOW2 and BFS tests.
 
 name: CI
 
@@ -118,10 +118,13 @@ jobs:
         run: |
           cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build
-      # Builds only: the tests ran for over an hour without finishing in
-      # the VM, so they run on the other systems.
-      - name: Check the applications were built
+      - name: Test
         shell: cpa.sh {0}
         run: |
+          mkdir -p ci-work/qcow2 ci-work/bfs
+          build/device-tests
+          build/hobbit-tests
+          build/qcow2-tests ci-work/qcow2
+          build/bfs-tests ci-work/bfs
           test -x objects.*/BeBox
           test -x build/src/qt/BeBox
