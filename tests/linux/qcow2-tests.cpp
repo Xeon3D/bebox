@@ -16,9 +16,10 @@
 #include <cstring>
 #include <random>
 #include <string>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include "core/host/Platform.h"
+#ifndef _WIN32
+#	include <sys/resource.h>
+#endif
 #include <vector>
 
 using namespace bebox;
@@ -256,6 +257,9 @@ TestQemuImages(const std::string& dir)
 }
 
 
+#ifndef _WIN32
+// (Windows has no file size limit to fill the disk with.)
+
 // Files cannot grow past 'limit' bytes (RLIM_INFINITY: no limit): writes
 // that would fail as on a full disk (EFBIG instead of ENOSPC).
 void
@@ -383,6 +387,8 @@ TestDiskFull(const std::string& dir, bool qemu)
 		writes, failures, (unsigned long long)FileSize(path) >> 10);
 }
 
+#endif	// !_WIN32
+
 }	// namespace
 
 
@@ -398,7 +404,9 @@ main(int argc, char** argv)
 	if (!qemu)
 		printf("qemu-img not found: only self checks\n");
 	TestOwnImages(dir, qemu);
+#ifndef _WIN32
 	TestDiskFull(dir, qemu);
+#endif
 	if (qemu)
 		TestQemuImages(dir);
 	printf("%d failures\n", sFailures);

@@ -55,4 +55,14 @@ enum { kInitiatorCpu0 = 0, kInitiatorCpu1 = 1, kInitiatorDma = 8 };
 
 }	// namespace bebox
 
+// printf style format checking (MinGW checks plain "printf" against the old
+// Microsoft runtime, which lacks %zu and %lld).
+#ifdef __MINGW32__
+#	define BB_PRINTF_FORMAT(formatIndex, firstArgument) \
+		__attribute__((format(gnu_printf, formatIndex, firstArgument)))
+#else
+#	define BB_PRINTF_FORMAT(formatIndex, firstArgument) \
+		__attribute__((format(printf, formatIndex, firstArgument)))
+#endif
+
 #endif	// BEBOX_TYPES_H

@@ -1,5 +1,5 @@
 /*
- * BeBox emulator - portable serial port backends (POSIX).
+ * BeBox emulator - portable serial port backends (POSIX and Windows).
  * Copyright 2026, the BeBox emulator authors. MIT License.
  *
  * All work happens on the emulation thread with non-blocking calls: the
@@ -9,7 +9,8 @@
  *   TcpSerial       a TCP server ("listen", one client at a time) or
  *                   client ("connect", reconnecting); raw bytes
  *   HostSerial      a host serial device (/dev/ports/... on Haiku,
- *                   /dev/tty... on Linux) with the guest's line settings
+ *                   /dev/tty... on Linux, COM1... on Windows) with the
+ *                   guest's line settings
  *
  * CreateSerialBackend() parses a destination: "file:PATH",
  * "tcp-listen:[ADDRESS:]PORT", "tcp-connect:HOST:PORT", "host:DEVICE".
@@ -88,7 +89,11 @@ public:
 private:
 								HostSerial() {}
 
+#ifdef _WIN32
+			void*				fHandle = nullptr;
+#else
 			int					fFd = -1;
+#endif
 			u8					fIn[256];
 			int					fInLength = 0;
 			int					fInPosition = 0;

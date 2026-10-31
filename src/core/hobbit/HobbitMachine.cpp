@@ -13,6 +13,7 @@
 #include "Ncr53c94.h"
 #include "../Log.h"
 #include "../bus/IoSpace.h"
+#include "../host/Platform.h"
 #include "../bus/PhysBus.h"
 #include "../isa/Fdc82077.h"
 #include "../isa/Kbc8042.h"
@@ -89,7 +90,7 @@ WriteFile(const std::string& path, const void* data, size_t size)
 	bool ok = fwrite(data, 1, size, file) == size;
 	ok = fclose(file) == 0 && ok;
 	if (ok)
-		ok = rename(temporary.c_str(), path.c_str()) == 0;
+		ok = RenameReplacing(temporary.c_str(), path.c_str()) == 0;
 	return ok;
 }
 

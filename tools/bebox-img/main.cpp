@@ -26,7 +26,8 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <sys/stat.h>
+#include "core/host/Platform.h"
+
 #include <utime.h>
 #include <vector>
 
@@ -160,7 +161,12 @@ Info(const char* path)
 	printf("format: %s\n", image->Format());
 	printf("virtual size: %s (%llu bytes)\n", HumanSize(image->Size()).c_str(),
 		(unsigned long long)image->Size());
-	printf("disk size: %s\n", HumanSize((u64)st.st_blocks * 512).c_str());
+#ifdef _WIN32
+	u64 allocatedBytes = (u64)st.st_size;		// no block count on Windows
+#else
+	u64 allocatedBytes = (u64)st.st_blocks * 512;
+#endif
+	printf("disk size: %s\n", HumanSize(allocatedBytes).c_str());
 	if (Qcow2Image* qcow = dynamic_cast<Qcow2Image*>(image.get())) {
 		printf("version: %d\n", qcow->Version());
 		printf("cluster size: %u\n", qcow->ClusterSize());

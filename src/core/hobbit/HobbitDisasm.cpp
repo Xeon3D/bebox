@@ -21,7 +21,7 @@ static const char* const kSuffixes[4] = { ":B", ":UB", ":H", ":UH" };
 
 
 static std::string
-Format(const char* format, ...) __attribute__((format(printf, 1, 2)));
+Format(const char* format, ...) BB_PRINTF_FORMAT(1, 2);
 
 static std::string
 Format(const char* format, ...)
