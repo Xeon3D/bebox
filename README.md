@@ -360,12 +360,52 @@ where the host's time goes and what the processors' slow paths did;
 `--profile`: the emulator's functions that take the time, on Linux). `bebox-headless --help` lists
 the options.
 
+## Windows
+
+`BeBox.exe` is the same emulator in a Windows application (Windows 10
+version 1903 or later, 64-bit): the screen between the LED columns, the
+same menus (Machine, Media, View, Tools), preferences sections, profiles
+and command line options. The differences:
+
+- Settings and profiles are in `%APPDATA%\BeBox` (`settings.ini`, and
+  `Profiles\NAME\` with each profile's settings, flash and NVRAM).
+- The mouse release key is Right Ctrl, Right Alt, Right Windows or Menu.
+  While the mouse is captured, the Windows keys, Alt+Tab, Alt+Esc and
+  Ctrl+Esc go to the BeBox too (Ctrl+Alt+Del stays with Windows: Machine
+  > Send Ctrl+Alt+Delete).
+- CD and floppy images dropped on the window go into the first CD-ROM
+  drive (an empty one if there is) or the floppy drive.
+- Shared folders are Windows folders (no BeOS attributes on the Windows
+  side); host serial ports are `COM1`, `COM2`...; joysticks are the game
+  controllers Windows lists.
+- `--log CATEGORY=LEVEL` writes to the console BeBox was started from.
+
+The preferences are a sidebar of sections (Machine, ROM & NVRAM, Display,
+Input devices, Sound, Network, Ports, Storage), each with its pages on
+tabs where it has more than one.
+
 ## Building
 
 On Haiku (with `haiku_devel`, `zlib_devel` and `libslirp_devel`): `make`
 builds the app;
 `package/build-package.sh` builds the app and the tools and creates the
 package.
+
+On Windows, with MSYS2's UCRT64 environment (`pacman -S
+mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake
+mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf
+mingw-w64-ucrt-x86_64-zlib mingw-w64-ucrt-x86_64-libslirp`):
+
+    cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
+
+builds `build/src/win32/BeBox.exe`, `bebox-headless.exe`, `bebox-img.exe`
+and the core's tests, all linked statically (they need no DLLs beyond
+Windows' own). The same CMake build works on Linux (without the
+application).
+
+The preferences' icons are drawn by `src/frontend/make_page_icons.py`
+(`python src/frontend/make_page_icons.py src/frontend/icons`).
 
 The emulator core is portable C++17 and is tested on Linux:
 

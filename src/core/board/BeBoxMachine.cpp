@@ -10,6 +10,7 @@
 #include "ThreadGovernor.h"
 #include "../Log.h"
 #include "../Spin.h"
+#include "../host/Platform.h"
 #include "../bus/IoSpace.h"
 #include "../bus/Mpc105.h"
 #include "../bus/PciBus.h"
@@ -66,7 +67,7 @@ WriteFile(const std::string& path, const void* data, size_t size)
 	bool ok = fwrite(data, 1, size, file) == size;
 	ok = fclose(file) == 0 && ok;
 	if (ok)
-		ok = rename(temporary.c_str(), path.c_str()) == 0;
+		ok = RenameReplacing(temporary.c_str(), path.c_str()) == 0;
 	return ok;
 }
 

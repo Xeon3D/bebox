@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -669,8 +670,11 @@ ScsiSense(ScsiDevice& device)
 void
 TestCdChange()
 {
-	char path[] = "/tmp/bebox-cd-XXXXXX";
-	int fd = mkstemp(path);
+	std::string temporary = (std::filesystem::temp_directory_path()
+		/ "bebox-cd-XXXXXX").string();
+	std::vector<char> path(temporary.begin(), temporary.end());
+	path.push_back('\0');
+	int fd = mkstemp(path.data());
 	if (fd < 0) {
 		Check(false, "CD: temporary image");
 		return;
@@ -680,8 +684,8 @@ TestCdChange()
 	bool written = write(fd, sectors.data(), sectors.size())
 		== (ssize_t)sectors.size();
 	close(fd);
-	std::string isoPath = std::string(path) + ".iso";
-	rename(path, isoPath.c_str());
+	std::string isoPath = std::string(path.data()) + ".iso";
+	rename(path.data(), isoPath.c_str());
 	Check(written, "CD: temporary image");
 	std::string error;
 

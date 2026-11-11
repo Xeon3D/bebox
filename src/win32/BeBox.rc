@@ -1,0 +1,311 @@
+/*
+ * BeBox emulator for Windows - resources.
+ * Copyright 2026, the BeBox emulator authors. MIT License.
+ */
+#include <windows.h>
+#include <commctrl.h>
+
+#include "resource.h"
+
+IDI_BEBOX ICON "BeBox.ico"
+
+IDI_PAGE_MACHINE ICON "../frontend/icons/machine.ico"
+IDI_PAGE_ROM ICON "../frontend/icons/rom.ico"
+IDI_PAGE_DISPLAY ICON "../frontend/icons/display.ico"
+IDI_PAGE_INPUT ICON "../frontend/icons/input.ico"
+IDI_PAGE_SOUND ICON "../frontend/icons/sound.ico"
+IDI_PAGE_NETWORK ICON "../frontend/icons/network.ico"
+IDI_PAGE_PORTS ICON "../frontend/icons/ports.ico"
+IDI_PAGE_STORAGE ICON "../frontend/icons/storage.ico"
+IDI_PAGE_PERFORMANCE ICON "../frontend/icons/performance.ico"
+IDI_PAGE_KEYBOARD ICON "../frontend/icons/keyboard.ico"
+IDI_PAGE_JOYSTICK ICON "../frontend/icons/joystick.ico"
+
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "BeBox.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1, 2, 0, 0
+PRODUCTVERSION 1, 2, 0, 0
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE 0x0L
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904b0"
+		BEGIN
+			VALUE "CompanyName", "The BeBox emulator authors"
+			VALUE "FileDescription", "BeBox emulator"
+			VALUE "FileVersion", "1.2"
+			VALUE "InternalName", "BeBox"
+			VALUE "LegalCopyright", "Copyright 2026, the BeBox emulator authors. MIT License."
+			VALUE "OriginalFilename", "BeBox.exe"
+			VALUE "ProductName", "BeBox"
+			VALUE "ProductVersion", "1.2"
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x409, 1200
+	END
+END
+
+
+// The preferences window: a sidebar of sections, the section's icon and
+// name, and its pages on tabs (or in a frame when it has only one).
+IDD_PREFS DIALOGEX 0, 0, 476, 297
+STYLE DS_SHELLFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "BeBox preferences"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LISTBOX IDC_PREFS_SIDEBAR, 7, 7, 110, 257, LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+	CONTROL "", IDC_PREFS_ICON, "Static", SS_ICON | SS_REALSIZEIMAGE, 124, 7, 16, 16
+	LTEXT "", IDC_PREFS_TITLE, 146, 9, 200, 12, SS_NOPREFIX
+	CONTROL "", IDC_PREFS_TABS, "SysTabControl32", WS_TABSTOP | WS_CLIPSIBLINGS, 124, 28, 345, 236
+	CONTROL "", IDC_PREFS_FRAME, "Static", SS_ETCHEDFRAME | WS_CLIPSIBLINGS, 124, 28, 345, 236
+	CONTROL "", -1, "Static", SS_ETCHEDHORZ, 7, 270, 462, 1
+	DEFPUSHBUTTON "OK", IDOK, 365, 277, 50, 14
+	PUSHBUTTON "Cancel", IDCANCEL, 419, 277, 50, 14
+END
+
+// The pages, without their captions in the preferences window.
+#define PAGE_STYLE DS_SHELLFONT | WS_CHILD | WS_CAPTION | DS_CONTROL
+
+IDD_PREFS_MACHINE DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Machine"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "Model:", -1, 7, 10, 70, 10
+	COMBOBOX IDC_MODEL, 80, 8, 250, 100, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "Memory:", -1, 7, 28, 70, 10
+	COMBOBOX IDC_MEMORY, 80, 26, 100, 160, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "Processors:", -1, 7, 46, 70, 10
+	COMBOBOX IDC_CPUS, 80, 44, 160, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "Motherboard:", -1, 7, 64, 70, 10
+	COMBOBOX IDC_BOARD, 80, 62, 160, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "I/O card:", -1, 7, 82, 70, 10
+	COMBOBOX IDC_IO_CARD, 80, 80, 160, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "Speed:", -1, 7, 100, 70, 10
+	COMBOBOX IDC_SPEED, 80, 98, 160, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "", IDC_MACHINE_NOTE, 7, 124, 326, 90
+END
+
+IDD_PREFS_ROMS DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "ROM & NVRAM"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "ROM folder:", -1, 7, 10, 70, 10
+	EDITTEXT IDC_ROM_DIR, 80, 8, 200, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "Choose...", IDC_ROM_DIR_CHOOSE, 284, 7, 50, 15
+	LTEXT "Boot ROM image:", -1, 7, 28, 70, 10
+	EDITTEXT IDC_BOOT_ROM, 80, 26, 200, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "Choose...", IDC_BOOT_ROM_CHOOSE, 284, 25, 50, 15
+	LTEXT "Hobbit kernel:", -1, 7, 46, 70, 10
+	EDITTEXT IDC_HOBBIT_KERNEL, 80, 44, 200, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "Choose...", IDC_HOBBIT_KERNEL_CHOOSE, 284, 43, 50, 15
+	LTEXT "The folder holds bootnub.rom and bootmain.rom from a BeBox. A boot ROM image replaces bootmain.rom: a ROM update image (bebox_bootmain.image), or a PowerPC BeOS CD image (PR2, R3, R4.5) to copy it from.", -1, 7, 66, 326, 34
+	PUSHBUTTON "Reset boot ROM flash", IDC_RESET_FLASH, 7, 104, 100, 15
+	PUSHBUTTON "Clear NVRAM", IDC_CLEAR_NVRAM, 112, 104, 80, 15
+	LTEXT "The flash holds the boot ROM (and what BeOS's ROM updater wrote to it); the NVRAM the boot preferences. Both are kept per profile. The Hobbit prototype has no boot ROM here: BeBox starts its kernel itself.", -1, 7, 126, 326, 40
+END
+
+IDD_PREFS_DISPLAY DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Display"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "Video card:", -1, 7, 10, 70, 10
+	COMBOBOX IDC_VIDEO, 80, 8, 200, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "Video memory:", -1, 7, 28, 70, 10
+	COMBOBOX IDC_VRAM, 80, 26, 80, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "LED colors:", -1, 7, 52, 70, 10
+	COMBOBOX IDC_LED_STYLE, 80, 50, 160, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	AUTOCHECKBOX "Show the front panel LEDs", IDC_SHOW_LEDS, 80, 68, 200, 10
+	LTEXT "The LEDs are the same in all profiles.", -1, 7, 88, 326, 10
+END
+
+IDD_PREFS_STORAGE DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Storage"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "IDE master:", -1, 7, 8, 46, 10
+	EDITTEXT IDC_IDE_PATH, 116, 6, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", IDC_IDE_CHOOSE, 258, 6, 18, 13
+	AUTOCHECKBOX "Read only", IDC_IDE_READ_ONLY, 282, 7, 56, 10
+	LTEXT "IDE slave:", -1, 7, 23, 46, 10
+	EDITTEXT 1034, 116, 21, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1035, 258, 21, 18, 13
+	AUTOCHECKBOX "Read only", 1036, 282, 22, 56, 10
+
+	LTEXT "SCSI ID 0:", -1, 7, 41, 46, 10
+	COMBOBOX 1040, 54, 39, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1041, 116, 39, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1042, 258, 39, 18, 13
+	AUTOCHECKBOX "Read only", 1043, 282, 40, 56, 10
+	LTEXT "SCSI ID 1:", -1, 7, 56, 46, 10
+	COMBOBOX 1044, 54, 54, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1045, 116, 54, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1046, 258, 54, 18, 13
+	AUTOCHECKBOX "Read only", 1047, 282, 55, 56, 10
+	LTEXT "SCSI ID 2:", -1, 7, 71, 46, 10
+	COMBOBOX 1048, 54, 69, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1049, 116, 69, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1050, 258, 69, 18, 13
+	AUTOCHECKBOX "Read only", 1051, 282, 70, 56, 10
+	LTEXT "SCSI ID 3:", -1, 7, 86, 46, 10
+	COMBOBOX 1052, 54, 84, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1053, 116, 84, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1054, 258, 84, 18, 13
+	AUTOCHECKBOX "Read only", 1055, 282, 85, 56, 10
+	LTEXT "SCSI ID 4:", -1, 7, 101, 46, 10
+	COMBOBOX 1056, 54, 99, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1057, 116, 99, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1058, 258, 99, 18, 13
+	AUTOCHECKBOX "Read only", 1059, 282, 100, 56, 10
+	LTEXT "SCSI ID 5:", -1, 7, 116, 46, 10
+	COMBOBOX 1060, 54, 114, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1061, 116, 114, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1062, 258, 114, 18, 13
+	AUTOCHECKBOX "Read only", 1063, 282, 115, 56, 10
+	LTEXT "SCSI ID 6:", -1, 7, 131, 46, 10
+	COMBOBOX 1064, 54, 129, 58, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1065, 116, 129, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", 1066, 258, 129, 18, 13
+	AUTOCHECKBOX "Read only", 1067, 282, 130, 56, 10
+
+	LTEXT "Floppy:", -1, 7, 149, 46, 10
+	EDITTEXT IDC_FLOPPY_PATH, 116, 147, 140, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "...", IDC_FLOPPY_CHOOSE, 258, 147, 18, 13
+	AUTOCHECKBOX "Write protect", IDC_FLOPPY_PROTECT, 282, 148, 56, 10
+
+	PUSHBUTTON "New disk image...", IDC_NEW_DISK, 7, 166, 80, 15
+	LTEXT "Disk images: raw, or QCOW2 (grows as it fills). Shared folder: a Windows folder BeOS sees as a disk (Advanced Access and later); BeOS's changes come back to the folder when it shuts down.", -1, 92, 165, 246, 40
+END
+
+IDD_PREFS_SOUND DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Sound"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	AUTOCHECKBOX "Play the sound output (CS4231A codec)", IDC_SOUND_ENABLED, 7, 10, 250, 10
+	LTEXT "Volume:", -1, 7, 32, 50, 10
+	CONTROL "", IDC_SOUND_VOLUME, TRACKBAR_CLASS, TBS_HORZ | TBS_NOTICKS | WS_TABSTOP, 60, 28, 200, 18
+	LTEXT "Mute", -1, 60, 48, 30, 10
+	RTEXT "Full", -1, 230, 48, 30, 10
+END
+
+IDD_PREFS_INPUT DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Keyboard & mouse"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "Mouse release key:", -1, 7, 10, 80, 10
+	COMBOBOX IDC_HOST_KEY, 90, 8, 140, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "Mouse speed:", -1, 7, 32, 80, 10
+	CONTROL "", IDC_MOUSE_SPEED, TRACKBAR_CLASS, TBS_HORZ | TBS_NOTICKS | WS_TABSTOP, 88, 28, 200, 18
+	LTEXT "Slow", -1, 88, 48, 30, 10
+	RTEXT "Fast", -1, 258, 48, 30, 10
+	AUTOCHECKBOX "Swap the left and right mouse buttons", IDC_SWAP_BUTTONS, 7, 66, 250, 10
+	AUTOCHECKBOX "Clicking the screen captures the mouse", IDC_CAPTURE_ON_CLICK, 7, 80, 250, 10
+	LTEXT "While the mouse is captured, all keys go to the BeBox (also the Windows keys and Alt+Tab), except the release key. The release key also captures the mouse; with F it switches to full screen and back.", -1, 7, 100, 326, 40
+END
+
+IDD_PREFS_GAMEPORTS DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Game ports"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "Stick 1:", -1, 7, 10, 50, 10
+	COMBOBOX 1100, 60, 8, 200, 100, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "Stick 2:", -1, 7, 28, 50, 10
+	COMBOBOX 1101, 60, 26, 200, 100, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "Stick 3:", -1, 7, 46, 50, 10
+	COMBOBOX 1102, 60, 44, 200, 100, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "Stick 4:", -1, 7, 64, 50, 10
+	COMBOBOX 1103, 60, 62, 200, 100, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "Sticks 1 and 2 are on the upper game port, 3 and 4 on the lower one. Joysticks and game controllers connected to this computer are listed.", -1, 7, 86, 326, 30
+END
+
+IDD_PREFS_NETWORK DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Network"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	AUTOCHECKBOX "Ethernet card (NE2000 compatible, ISA)", IDC_ETHERNET, 7, 10, 250, 10
+	LTEXT "I/O port:", -1, 7, 30, 80, 10
+	COMBOBOX IDC_ETHERNET_PORT, 90, 28, 60, 120, CBS_DROPDOWNLIST | WS_TABSTOP | WS_VSCROLL
+	LTEXT "IRQ:", -1, 7, 48, 80, 10
+	COMBOBOX IDC_ETHERNET_IRQ, 90, 46, 60, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "MAC address:", -1, 7, 66, 80, 10
+	EDITTEXT IDC_MAC_ADDRESS, 90, 64, 100, 13, ES_AUTOHSCROLL
+	LTEXT "Forwarded host ports:", -1, 7, 84, 80, 10
+	EDITTEXT IDC_PORT_FORWARDS, 90, 82, 200, 13, ES_AUTOHSCROLL
+	LTEXT "Host ports that reach the BeBox, e.g. tcp:2121:21,tcp:8080:80.", -1, 90, 98, 243, 10
+	LTEXT "The BeBox is on a private network behind this computer (NAT): in BeOS's Network preferences, add a Novell NE2000 interface at the port and IRQ above. IP 10.0.2.15, mask 255.255.255.0, gateway 10.0.2.2, DNS 10.0.2.3 (or DHCP). The host is 10.0.2.2.", -1, 7, 118, 326, 50
+END
+
+IDD_PREFS_SERIAL DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Serial ports"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "Serial 1:", -1, 7, 10, 64, 10
+	COMBOBOX 1120, 74, 8, 100, 100, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1121, 178, 8, 155, 13, ES_AUTOHSCROLL
+	LTEXT "Serial 2:", -1, 7, 28, 64, 10
+	COMBOBOX 1122, 74, 26, 100, 100, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1123, 178, 26, 155, 13, ES_AUTOHSCROLL
+	LTEXT "Serial 3:", -1, 7, 46, 64, 10
+	COMBOBOX 1124, 74, 44, 100, 100, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1125, 178, 44, 155, 13, ES_AUTOHSCROLL
+	LTEXT "Serial 4 (debug):", -1, 7, 64, 64, 10
+	COMBOBOX 1126, 74, 62, 100, 100, CBS_DROPDOWNLIST | WS_TABSTOP
+	EDITTEXT 1127, 178, 62, 155, 13, ES_AUTOHSCROLL
+	LTEXT "TCP server: a port, or address:port (e.g. 2001). TCP client: host:port (e.g. localhost:2001). Host serial port: COM1, COM2... Log to file: a file path.", -1, 7, 84, 326, 30
+	LTEXT "Serial 4 carries the kernel's debug output (Machine > Restart with debug output).", -1, 7, 116, 326, 20
+END
+
+IDD_PREFS_ADVANCED DIALOGEX 0, 0, 340, 220
+STYLE PAGE_STYLE
+CAPTION "Advanced"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "CPU time slice:", -1, 7, 10, 90, 10
+	COMBOBOX IDC_QUANTUM, 100, 8, 100, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "Cycles per instruction:", -1, 7, 28, 90, 10
+	COMBOBOX IDC_CPI, 100, 26, 100, 80, CBS_DROPDOWNLIST | WS_TABSTOP
+	AUTOCHECKBOX "Run each processor on a host core of its own", IDC_THREADS, 7, 48, 250, 10
+	LTEXT "The processors run in slices of emulated time, the devices in between: shorter slices are closer to the real machine and slower. On cores of their own, both processors run at the same time: up to nearly twice as fast when BeOS keeps both busy.", -1, 7, 66, 326, 40
+END
+
+IDD_NEW_DISK DIALOGEX 0, 0, 300, 96
+STYLE DS_SHELLFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "New disk image"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "File:", -1, 7, 10, 40, 10
+	EDITTEXT IDC_DISK_PATH, 50, 8, 186, 13, ES_AUTOHSCROLL
+	PUSHBUTTON "Choose...", IDC_DISK_CHOOSE, 240, 7, 53, 15
+	LTEXT "Size:", -1, 7, 30, 40, 10
+	COMBOBOX IDC_DISK_SIZE, 50, 28, 90, 120, CBS_DROPDOWNLIST | WS_TABSTOP
+	LTEXT "Format:", -1, 7, 50, 40, 10
+	COMBOBOX IDC_DISK_FORMAT, 50, 48, 186, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+	DEFPUSHBUTTON "Create", IDOK, 186, 74, 50, 15
+	PUSHBUTTON "Cancel", IDCANCEL, 243, 74, 50, 15
+END
+
+IDD_PROFILE_NAME DIALOGEX 0, 0, 240, 64
+STYLE DS_SHELLFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Profile"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+	LTEXT "Name:", IDC_PROFILE_PROMPT, 7, 8, 226, 10
+	EDITTEXT IDC_PROFILE_NAME, 7, 20, 226, 13, ES_AUTOHSCROLL
+	DEFPUSHBUTTON "OK", IDOK, 126, 42, 50, 15
+	PUSHBUTTON "Cancel", IDCANCEL, 183, 42, 50, 15
+END
