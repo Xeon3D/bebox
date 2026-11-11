@@ -39,6 +39,11 @@ SYSTEM_INCLUDE_PATHS = /boot/system/develop/headers/private/shared \
 OPTIMIZE := FULL
 WARNINGS = ALL
 COMPILER_FLAGS = -std=c++17 -ffp-contract=off
+# 32-bit x86 (setarch x86): doubles in SSE2, as on x86-64, not in the x87's
+# 80-bit registers, which round twice
+ifeq ($(shell getarch),x86)
+COMPILER_FLAGS += -msse2 -mfpmath=sse
+endif
 DEBUGGER :=
 
 DEVEL_DIRECTORY := /boot/system/develop

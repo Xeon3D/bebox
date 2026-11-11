@@ -55,8 +55,9 @@ public:
 									bool captureOnClick);
 			BBitmap*			CopyFrame() const;
 
-	// VideoSink (emulation thread)
-	virtual	void				FrameReady(const uint32* pixels, int width,
+	// VideoSink (emulation thread); bebox::u32, not uint32 (unsigned long
+	// on 32-bit Haiku, so not an override there)
+	virtual	void				FrameReady(const bebox::u32* pixels, int width,
 									int height, int stride, int top,
 									int bottom);
 

@@ -92,8 +92,7 @@ Uart16550::_CharacterTicks() const
 	u64 bitsPerChar = 1 + (5 + (fLcr & 3)) + ((fLcr & 8) != 0 ? 1 : 0)
 		+ ((fLcr & 4) != 0 ? 2 : 1);
 	// bit time = 16 * divisor / clock
-	return (u64)(((unsigned __int128)fTicksPerSecond * 16 * divisor
-		* bitsPerChar) / fClock);
+	return MulDiv(fTicksPerSecond, 16 * divisor * bitsPerChar, fClock);
 }
 
 

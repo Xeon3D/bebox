@@ -14,7 +14,9 @@
 
 #include <cmath>
 
-#if defined(__x86_64__) || defined(__i386__)
+// MXCSR holds the rounding and flags of double arithmetic only when it is
+// done in SSE2 (always on x86-64; on 32-bit x86 with -mfpmath=sse)
+#if defined(__x86_64__) || (defined(__i386__) && defined(__SSE2_MATH__))
 #	include <xmmintrin.h>
 #	define BEBOX_HAVE_MXCSR 1
 #else
