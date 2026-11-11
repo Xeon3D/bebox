@@ -2,11 +2,11 @@
  * BeBox emulator for Windows - the preferences.
  * Copyright 2026, the BeBox emulator authors. MIT License.
  *
- * A sidebar of sections (Machine, ROM & NVRAM, Display, Input devices,
- * Sound, Network, Ports, Storage), each with its icon and name above its
- * pages, on tabs where it has more than one. It edits a copy of the
- * settings; the caller takes the result and decides what it means for a
- * running machine.
+ * The Qt front end's layout: a sidebar of sections (Machine, ROM & NVRAM,
+ * Display, Input devices, Sound, Network, Ports, Storage), each with its
+ * icon and name above its pages, on tabs where it has more than one. It
+ * edits a copy of the settings; the caller takes the result and decides
+ * what it means for a running machine.
  */
 #ifndef WIN32_PREFS_DIALOG_H
 #define WIN32_PREFS_DIALOG_H

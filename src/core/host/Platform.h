@@ -76,6 +76,9 @@ StatModifiedNs(const struct stat& st)
 {
 #ifdef _WIN32
 	return (long long)st.st_mtime * 1000000000;
+#elif defined(__APPLE__)
+	return (long long)st.st_mtimespec.tv_sec * 1000000000
+		+ st.st_mtimespec.tv_nsec;
 #else
 	return (long long)st.st_mtim.tv_sec * 1000000000 + st.st_mtim.tv_nsec;
 #endif

@@ -30,12 +30,17 @@ src/core/      portable C++17, no Haiku headers: the machine
                EmulatorThread (real time pacing on its own thread),
                Platform (the POSIX file calls, also on Windows)
 src/haiku/     the Haiku application
-src/frontend/  the front end's portable part: Settings (settings and
-               profiles), CommandLine, JobQueue (shared folder copies),
-               the preferences' icons and the script that draws them
+src/frontend/  shared by the Windows and Qt applications: Settings
+               (settings and profiles), CommandLine, JobQueue (shared
+               folder copies), the preferences' icons and the script
+               that draws them
 src/win32/     the Windows application (Win32: MainWindow, ScreenView,
                PrefsDialog, WinAudio through waveOut, KeyMap from scan
                code set 1)
+src/qt/        the Qt 6 application for Windows, Linux, macOS and Haiku
+               (MainWindow, ScreenWidget, LedWidget, PrefsDialog,
+               AudioOutput through Qt Multimedia, Joysticks through SDL2,
+               KeyMap from each system's native key codes)
 src/headless/  bebox-headless, the command line runner (Linux, Haiku and
                Windows)
 tools/         bebox-img, extract-rom-images.sh, ppc-testgen.py, make_icon.py,

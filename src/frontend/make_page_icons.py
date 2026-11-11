@@ -7,7 +7,7 @@
 # face, a lighter left and a darker right side with soft gradients, dark
 # outlines, and a soft shadow towards the lower right. Rendered with a
 # scanline rasterizer at 4x and downsampled; written as PNG (16 to 64
-# pixels) and ICO (16-48, for the Windows front end).
+# pixels, for the Qt front end) and ICO (16-48, for the Windows one).
 # No libraries needed:
 #
 #   python make_page_icons.py OUTPUT_FOLDER [NAME...]
